@@ -12,5 +12,8 @@ It will handle:
 - Slur prevention
   - Self explanitory
 
+Join the Discord to help!
+https://discord.gg/JDQTkTw3Ek
+
 
 https://www.maskup.pitt.edu/residence-life/
