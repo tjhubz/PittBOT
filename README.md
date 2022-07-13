@@ -1,6 +1,7 @@
 # PittBOT
 
-**This is the bot that will be used for all official Pitt Discord guilds.**\
+**This is the bot that will be used for all official Pitt Discord guilds.**
+
 https://www.maskup.pitt.edu/residence-life/
 
 
@@ -16,13 +17,13 @@ The bot will handle:
 - Automatic assistance with common questions (FAQ system) - this is not something that needs to happen
   - For instance, if someone asks "What are meal exchanges?" it would inform them what they are and how to use them.
 - Slur prevention
-  - Self explanitory
+  - Self-explanatory
 
 ## Contributing 
-If you are interested in contributing, see [DEV.md](DEV.md) to get started, and [join the Discord][discord-link]!
+If you are interested in contributing, see [CONTRIBUTING.md](CONTRIBUTING.md) to get started, and [join the Discord][discord-link]!
 
 ### Current Goals
-Right now, we want to get the core functionality mentioned above working. Top priority is student verification and automatice role assignment. When those are complete, we'll start working on the other features listed. As we move through those features, if you think the bot could use a new feature, feel free to join the [discord][discord-link] and let us know!
+Right now, we want to get the core functionality mentioned above working. Top priority is student verification and automatic role assignment. When those are complete, we'll start working on the other features listed. As we move through those features, if you think the bot could use a new feature, feel free to [join the Discord][discord-link] and let us know!
 
 [discord-link]: https://discord.gg/JDQTkTw3Ek
 
