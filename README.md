@@ -1,6 +1,12 @@
-**This is the bot that will be used for all official Pitt Discord guilds.**
+# PittBOT
 
-It will handle:
+**This is the bot that will be used for all official Pitt Discord guilds.**\
+https://www.maskup.pitt.edu/residence-life/
+
+
+## What it does
+
+The bot will handle:
 - Student verification (https://github.com/gg2001/EmailBot)
   - Students must enter their pitt email, to which the bot will then verify using a code. If it could also get the student's name from their email and set it as their nickname that would be great.
 - Automatic role assignment (https://github.com/eco-community/invite-role-bot)
@@ -12,8 +18,11 @@ It will handle:
 - Slur prevention
   - Self explanitory
 
-Join the Discord to help!
-https://discord.gg/JDQTkTw3Ek
+## Contributing 
+If you are interested in contributing, see [DEV.md](DEV.md) to get started, and [join the Discord][discord-link]!
 
+### Current Goals
+Right now, we want to get the core functionality mentioned above working. Top priority is student verification and automatice role assignment. When those are complete, we'll start working on the other features listed. As we move through those features, if you think the bot could use a new feature, feel free to join the [discord][discord-link] and let us know!
 
-https://www.maskup.pitt.edu/residence-life/
+[discord-link]: https://discord.gg/JDQTkTw3Ek
+
