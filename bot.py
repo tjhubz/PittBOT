@@ -4,10 +4,16 @@ import os
 import sqlalchemy
 from sqlalchemy.orm import sessionmaker
 from db_classes import DbUser, Base
+import http.client
+import mimetypes
+import base64
 
 bot = discord.Bot()
 
 TOKEN = "default" # In a production environment, replace this with the real token
+QUALTRICS_OAUTH_SECRET = "default"
+QUALTRICS_CLIENT_ID = "default"
+SENDGRID_SECRET = "default"
 DEBUG = False
 VERSION = "#.#.#"
 DATABASE_PATH = None
@@ -26,6 +32,9 @@ with open("config.json", "r") as config:
         case "debug":
             DEBUG = True
             TOKEN = os.getenv("PITTBOT_TOKEN")
+            QUALTRICS_OAUTH_SECRET = os.getenv("QUALTRICS_OAUTH_SECRET")
+            QUALTRICS_CLIENT_ID = os.getenv("QUALTRICS_CLIENT_ID")
+            SENDGRID_SECRET = os.getenv("SENDGRID_TOKEN")
         case "production":
             DEBUG = False
     
@@ -69,10 +78,9 @@ if DEBUG:
     print(f"""Bootstrapping bot...
 ---------------------------------------
 {VERSION=}
-{TOKEN=}
 {DATABASE_PATH=}
 ---------------------------------------
 """)
 
 # Uncomment this line when we start running the bot
-# bot.run(TOKEN)
+bot.run(TOKEN)
