@@ -1,9 +1,11 @@
 import discord
+import discord.ext
 import orjson
 import os
 import sqlalchemy
 from sqlalchemy.orm import sessionmaker
-from db_classes import DbUser, Base
+from util.db import DbUser, Base
+import util.invites
 import http.client
 import mimetypes
 import base64
@@ -45,7 +47,7 @@ with open("config.json", "r") as config:
     # and information that is needed about them persistently 
     # (residence, email address, etc.)
     # This is a path to the database RELATIVE to THIS (bot.py) file.
-    DATABASE_PATH = data["database_path"] or "test.db"
+    DATABASE_PATH = data["database_path"] or "dbs/test.db"
     
 # Database initialization
 db = sqlalchemy.create_engine(f"sqlite:///{DATABASE_PATH}")
@@ -65,6 +67,21 @@ async def hello(ctx, name: str = None):
 @bot.user_command(name="Say Hello")
 async def hi(ctx, user):
     await ctx.respond(f"{ctx.author.mention} says hello to {user.name}!")
+    
+@bot.slash_command()
+@discord.guild_only()
+@discord.ext.commands.has_permissions(manage_channels=True)
+async def make_channels(ctx, file):
+    if ctx.guild:
+        # Make the channels
+        guild = ctx.guild
+        input_file = file or "util/__test.txt"
+        ras = util.invites.read_ras(input_file)
+        await util.invites.make_channels(guild, ras)
+        await ctx.respond("Channels were created!")
+    else:
+        await ctx.respond("Sorry! This command has to be used in a guild context.")
+        
 
 @bot.slash_command()
 async def verify(ctx):
@@ -72,7 +89,7 @@ async def verify(ctx):
     # However, in case something fails or the bot does not have permission to view
     # join events in a server, it is a good idea to have a slash command set up that 
     # will allow a user to manually trigger the verification process themselves.
-    ...
+    await ctx.respond(f"Oh no! looks like this command isn't implemented yet. Check back later.")
 
 if DEBUG:
     print(f"""Bootstrapping bot...
