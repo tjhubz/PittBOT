@@ -5,7 +5,7 @@
 https://www.maskup.pitt.edu/residence-life/
 
 
-## What it does
+## What it does/will do
 
 The bot will handle:
 - Automatic role assignment (https://github.com/eco-community/invite-role-bot)
