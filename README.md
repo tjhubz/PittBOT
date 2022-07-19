@@ -1,6 +1,6 @@
 # PittBOT
 
-**This is the bot that will be used for all official Pitt Discord guilds.**
+**This is the bot that will be used for all official Pitt ResLife Discord guilds.**
 
 https://www.maskup.pitt.edu/residence-life/
 
