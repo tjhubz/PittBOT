@@ -9,6 +9,7 @@ import util.invites
 import http.client
 import mimetypes
 import base64
+import requests
 
 bot = discord.Bot()
 
@@ -71,14 +72,34 @@ async def hi(ctx, user):
 @bot.slash_command()
 @discord.guild_only()
 @discord.ext.commands.has_permissions(manage_channels=True)
-async def make_channels(ctx, file):
+async def make_categories(ctx, link: str):
+    # Defer a response to prevent the 3 second timeout gate from being closed.
+    await ctx.defer()
+    
+    # If we actually are in a guild (this is a redundant check and can probably be
+    # removed, figuring the @discord.guild_only() decorator is provided, but I figured
+    # a graceful close just in case)
     if ctx.guild:
-        # Make the channels
         guild = ctx.guild
-        input_file = file or "util/__test.txt"
-        ras = util.invites.read_ras(input_file)
-        await util.invites.make_channels(guild, ras)
-        await ctx.respond("Channels were created!")
+        # Read the list of RAs from a RAW hastebin file. It is SIGNIFICANT that the
+        # link is to a RAW hastebin, or it will not be parsed correctly.
+        if "raw" not in link:
+            await ctx.send_followup("Uh oh! You need to send a `raw` hastebin link. Click the 'Just Text' button on hastebin to get one.")
+            return
+        
+        # Guard request in case of status code fail
+        try:
+            ras = util.invites.read_from_haste(link)
+        except requests.RequestException:
+            await ctx.send_followup("The given link returned a failure status code when queried. Are you sure it's valid?")
+            return
+        
+        # Make the categories. This also makes their channels, the roles, and a text file
+        # called 'ras-with-links.txt' that returns the list of RAs with the associated invite links.
+        await util.invites.make_categories(guild, ras)
+        
+        # Upload that file as an attachment.
+        await ctx.send_followup(file=discord.File("ras-with-links.txt"))
     else:
         await ctx.respond("Sorry! This command has to be used in a guild context.")
         

@@ -8,7 +8,7 @@ The bot is programmed using Python 3.10. If you do not have Python 3.10 installe
 ## Getting the code
 To obtain a copy of the code, you can do one of the following:
 
-1. Fork the repository, then clone your fork. (This is the best option if you plan on making a pull request, which most contributors will do.)
+1. [Fork the repository](https://docs.github.com/en/get-started/quickstart/fork-a-repo), then clone your fork. (This is the best option if you plan on making a pull request, which most contributors will do.)
 2. Clone this repository directly.
 
 To clone this repository, [ensure that Git is installed](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git) and, inside of a local folder which you would like to use for development, run the following:
