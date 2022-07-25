@@ -11,7 +11,10 @@ import mimetypes
 import base64
 import requests
 
-bot = discord.Bot()
+
+bot = discord.Bot(intents=discord.Intents.all())
+
+# ------------------------------- INITIALIZATION -------------------------------
 
 TOKEN = "default" # In a production environment, replace this with the real token
 QUALTRICS_OAUTH_SECRET = "default"
@@ -20,6 +23,8 @@ SENDGRID_SECRET = "default"
 DEBUG = False
 VERSION = "#.#.#"
 DATABASE_PATH = None
+
+# ------------------------------- DATABASE -------------------------------
 
 with open("config.json", "r") as config:
     data = orjson.loads(config.read())
@@ -57,6 +62,20 @@ Session = sessionmaker(bind=db)
 session = Session()
 # Create tables
 Base.metadata.create_all(db)
+
+# ------------------------------- GLOBAL VARIABLES  -------------------------------
+
+# Guild to invites associativity
+invites_cache = dict()
+
+# Invite codes to role objects associativity
+invite_to_role = dict()
+
+# Associate each guild with its landing channel
+guild_to_landing = dict()
+
+
+# ------------------------------- COMMANDS -------------------------------
 
 # These are just for testing and will be 
 # removed as soon as we know the bot works
@@ -96,13 +115,25 @@ async def make_categories(ctx, link: str):
         
         # Make the categories. This also makes their channels, the roles, and a text file
         # called 'ras-with-links.txt' that returns the list of RAs with the associated invite links.
-        await util.invites.make_categories(guild, ras)
+        invite_role_dict = await util.invites.make_categories(guild, ras, guild_to_landing[guild.id])
+        if not invite_role_dict:
+            await ctx.send_followp("Failed to make invites. Check that a #verify channel exists.")
+            return
         
-        # Upload that file as an attachment.
+        # Update invite cache, important for on_member_join's functionality
+        invites_cache[guild.id] = await guild.invites()
+        
+        # Iterate over the invites, adding the new role object 
+        # to our global dict if it was just created.
+        for invite in invites_cache[guild.id]:
+            if invite.code in invite_role_dict:
+                invite_to_role[invite.code] = invite_role_dict[invite.code]
+        
+        # Upload the file containing the links and ra names as an attachment, so they
+        # can be distributed to the RAs to share.
         await ctx.send_followup(file=discord.File("ras-with-links.txt"))
     else:
         await ctx.respond("Sorry! This command has to be used in a guild context.")
-        
 
 @bot.slash_command()
 async def verify(ctx):
@@ -111,6 +142,72 @@ async def verify(ctx):
     # join events in a server, it is a good idea to have a slash command set up that 
     # will allow a user to manually trigger the verification process themselves.
     await ctx.respond(f"Oh no! looks like this command isn't implemented yet. Check back later.")
+    
+@bot.slash_command(description="Manually begin initializing necessary information for the bot to work in this server.")
+@discord.guild_only()
+@discord.ext.commands.has_permissions(administrator=True)
+async def setup(ctx):
+    # Need to find out how to automate this.
+    # A good way is to make this run any time this bot joins a new guild,
+    # which can be done when on_guild_join event is fired.
+    # Also, adding persistence to guild_to_landing would be really cool.
+    # TODO: We need to make ORM models for Guilds and Invites in order to 
+    # persist guild_to_landing and invite_to_role.
+    
+    guild_to_landing[ctx.guild.id] = discord.utils.get(ctx.guild.channels, position=0)
+    print(f"{guild_to_landing=}")
+    invites_cache[ctx.guild.id] = await ctx.guild.invites()
+    await ctx.respond("All set!")
+    
+    
+# ------------------------------- EVENT HANDLERS -------------------------------
+
+@bot.event
+async def on_member_join(member: discord.Member):
+    # Need to figure out what invite the user joined with
+    # in order to assign the correct roles.
+    
+    print(f"Member join event fired with {member.display_name}")
+    
+    # This is a kind of janky method taken from this medium article:
+    # https://medium.com/@tonite/finding-the-invite-code-a-user-used-to-join-your-discord-server-using-discord-py-5e3734b8f21f
+    # Unfortunately, I cannot find a native API way to get the invite link used by a user. If you find one, please make a PR 😅
+    
+    # Invites before user joined
+    old_invites = invites_cache[member.guild.id]
+    
+    # Invites after user joined
+    invites_now = await member.guild.invites()
+    
+    for invite in old_invites:
+        print(f"Checking {invite.code}")
+        # O(n²), would love to make this faster
+        if invite.uses < util.invites.get_invite_from_code(invites_now, invite.code).uses:
+            
+            # Who joined and with what link
+            print(f"Member {member.name} Joined")
+            print(f"Invite Code: {invite.code}")
+            
+            # Need to give the member the appropriate role
+            if invite.code in invite_to_role:
+                await member.add_roles(invite_to_role[invite.code], reason=f"Member joined with invite code {invite.code}")
+            else:
+                # This is a pretty fatal error, and really shouldn't occur if everything has gone right up to here.
+                print(f"{invite.code} not in invite_to_role:\n{invite_to_role=}")
+            
+            # Update cache
+            invites_cache[member.guild.id] = invites_now
+            
+            # Short circuit out
+            return
+    
+    
+    
+@bot.event
+async def on_ready():
+    # Build a default invite cache
+    for guild in bot.guilds:
+        invites_cache[guild.id] = await guild.invites()
 
 if DEBUG:
     print(f"""Bootstrapping bot...
@@ -120,5 +217,4 @@ if DEBUG:
 ---------------------------------------
 """)
 
-# Uncomment this line when we start running the bot
 bot.run(TOKEN)

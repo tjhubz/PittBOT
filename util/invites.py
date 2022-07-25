@@ -10,18 +10,20 @@ import requests
 # they are just utility functions for the bot and will be
 # used across different guilds.
 
-def read_ras(filepath: str):
-    """Read list of RAs from a file path.
+def get_invite_from_code(invites, code):
+    """Get an invite object from a given invite code. (Used when members join to associate invites to them.)
 
     Args:
-        filepath (str): path to input file containing list of RAs
+        invites (list[Invite]): List of invites to search.
+        code (str): URL fragment code for the invite.
 
     Returns:
-        list[str]: RA names as a python list
+        Invite: the invite with a matching code, if one exists. None otherwise.
     """
-    with open(filepath, 'r') as infile:
-        return infile.readlines()
-    
+    for invite in invites:
+        if invite.code == code:
+            return invite
+    return None
     
 def read_from_haste(link: str):
     """Read a list of RAs from a RAW hastebin link containing a return-delimited list of RAs for a server. It is VERY important this link is the RAW link, or parsing will FAIL.
@@ -43,7 +45,7 @@ def read_from_haste(link: str):
         raise requests.RequestException(f"Request did not return a success code, returned status: {res.status_code}")
     
     
-async def make_categories(guild: discord.Guild, ras: list[str]):
+async def make_categories(guild: discord.Guild, ras: list[str], landing_channel: discord.TextChannel):
     """Make categories for each RA in an RA list, consisting of a text channel and voice channel.
 
     Args:
@@ -52,6 +54,8 @@ async def make_categories(guild: discord.Guild, ras: list[str]):
     """
     # Lines to add to the text file that is uploaded
     ras_with_links = []
+    # Dictionary that will associate RA links with category channels
+    invite_to_role = dict()
     
     # Iterate over all of the RAs in the hastebin response
     for ra_line in ras:
@@ -78,19 +82,26 @@ async def make_categories(guild: discord.Guild, ras: list[str]):
                 first_name = last_name = ra_line
         
         # Create the RA's category
-        category = await guild.create_category(f"RA {first_name.title()}'s Community")
+        category = await guild.create_category(f"RA {first_name.title()}'s Community", overwrites={guild.default_role: discord.PermissionOverwrite(read_messages=False)})
         
         # Create the text and voice channels
         text_channel = await category.create_text_channel("chat")
         await category.create_voice_channel("Voice")
         
         # Generate an invite.
-        invite = await text_channel.create_invite()
+        if landing_channel:
+            invite = await landing_channel.create_invite()
+        else:
+            return None
+        print(f"{invite.channel}")
         ras_with_links.append(f"{ra_line} : {invite.url}\n")
         
         # Generate a role to associate with the community.
         # TODO: Generate accurate permissions for this.
-        await guild.create_role(name=f"RA {first_name.title()}'s Community", color=Colour.blue(), permissions=Permissions.general())
+        new_role = await guild.create_role(name=f"RA {first_name.title()}'s Community", color=Colour.blue(), permissions=Permissions.general())
+        await category.set_permissions(new_role, read_messages=True)
+        
+        invite_to_role[invite.code] = new_role
     
     # Create the text file associating the RAs to links that we will upload.
     with open("ras-with-links.txt",'w') as ra_file:
@@ -100,6 +111,9 @@ async def make_categories(guild: discord.Guild, ras: list[str]):
     # would require either passing the DB object and session into this utility function
     # so it can access the bot's main database session, or moving this code all into the main bot file,
     # which is a fine solution, I just put it here to make the main bot file as clean as possible.
+
+    # Probably will return multiple pieces of information as a tuple, but for now, just need the invite to role associative data
+    return invite_to_role
     
     
 
