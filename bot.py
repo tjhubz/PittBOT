@@ -74,6 +74,31 @@ invite_to_role = dict()
 # Associate each guild with its landing channel
 guild_to_landing = dict()
 
+# This will not actually persistently associate every user with the guild they're in
+# Rather, it will be used during verification to associate a verifying user
+# with a guild, so that even if they are DMed verification rather
+# than doing it in the server, we can still know what guild they're verifying for.
+# A user CANNOT BE VERIFYING FOR MORE THAN ONE GUILD AT ONCE
+user_to_guild = dict()
+
+# Cache of user IDs to their pitt email addresses
+user_to_email = dict()
+
+# ------------------------------- CLASSES -------------------------------
+
+class VerifyModal(discord.ui.Modal):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        self.add_item(discord.ui.InputText(label="Pitt Email Address"))
+    
+    async def callback(self, interaction: discord.Interaction):
+        user_to_email[interaction.user.id] = self.children[0].value
+        await interaction.response.send_message(f"All set! We have your email address saved as {user_to_email[interaction.user.id]}")
+        
+    async def on_timeout(self):
+        self.stop()
+        
 
 # ------------------------------- COMMANDS -------------------------------
 
@@ -141,43 +166,47 @@ async def verify(ctx):
     # However, in case something fails or the bot does not have permission to view
     # join events in a server, it is a good idea to have a slash command set up that 
     # will allow a user to manually trigger the verification process themselves.
-    await ctx.respond(f"Oh noes! looks like this command isn't implemented yet. Check back later.")
     
-@bot.slash_command(description="Manually begin initializing necessary information for the bot to work in this server.")
-@discord.guild_only()
-@discord.ext.commands.has_permissions(administrator=True)
-async def setup(ctx):
-    # Need to find out how to automate this.
-    # A good way is to make this run any time this bot joins a new guild,
-    # which can be done when on_guild_join event is fired.
-    # Also, adding persistence to guild_to_landing would be really cool.
-    # TODO: We need to make ORM models for Guilds and Invites in order to 
-    # persist guild_to_landing and invite_to_role.
+    if ctx.author.id in user_to_guild:
+        # The verification was initialized on join
+        guild = user_to_guild[ctx.author.id]
+    elif ctx.guild:
+        guild = ctx.guild
+    else:
+        await ctx.respond("We weren't able to figure out which server you were trying to verify for. Try `/verify` inside the server's `#verify` channel.")
+        
+    member = discord.utils.get(guild.members, id=ctx.author.id)
     
-    guild_to_landing[ctx.guild.id] = discord.utils.get(ctx.guild.channels, position=0)
-    print(f"{guild_to_landing=}")
-    invites_cache[ctx.guild.id] = await ctx.guild.invites()
-    await ctx.respond("All set!")
+    if not member:
+        await ctx.respond(f"It doesn't look like we could verify that you are in the server {guild.name}. Try `/verify` inside the server's `#verify` channel.")
+        
+    # Show modal and collect information
+    modal = VerifyModal(title="Verification",timeout=60)
+    await ctx.send_modal(modal)
     
+    # You have to actually await on_timeout, so I'm not sure what to do if the timeout fails.
+    await modal.wait()
     
-# ------------------------------- EVENT HANDLERS -------------------------------
-
-@bot.event
-async def on_member_join(member: discord.Member):
-    # Need to figure out what invite the user joined with
-    # in order to assign the correct roles.
+    verified = True
     
-    print(f"Member join event fired with {member.display_name}")
+    if member.id in user_to_email:
+        email = user_to_email[member.id]
+    else:
+        # Fatal error, this should never happen.
+        await ctx.respond(f"Your user ID {member.id} doesn't show up in our records! Please report this error.")
+        print(f"{user_to_email=}")
+        email = "FAILED TO VERIFY"
+        verified = False
     
     # This is a kind of janky method taken from this medium article:
     # https://medium.com/@tonite/finding-the-invite-code-a-user-used-to-join-your-discord-server-using-discord-py-5e3734b8f21f
     # Unfortunately, I cannot find a native API way to get the invite link used by a user. If you find one, please make a PR 😅
     
     # Invites before user joined
-    old_invites = invites_cache[member.guild.id]
+    old_invites = invites_cache[guild.id]
     
     # Invites after user joined
-    invites_now = await member.guild.invites()
+    invites_now = await guild.invites()
     
     for invite in old_invites:
         print(f"Checking {invite.code}")
@@ -190,29 +219,103 @@ async def on_member_join(member: discord.Member):
             
             # Need to give the member the appropriate role
             if invite.code in invite_to_role:
+                is_user_RA = False            
                 # If the invite code's use was previously zero, then we should actually give the user 
                 # the RA role, in addition to the RA X's community role.
                 if invite.uses == 0:
                     # First use of invite
-                    await member.add_roles(discord.utils.get(member.guild.roles, name='RA'), reason=f"Member joined with first use of invite code {invite.code}")
+                    is_user_RA = True
+                    await member.add_roles(discord.utils.get(guild.roles, name='RA'), reason=f"Member joined with first use of invite code {invite.code}")
                 await member.add_roles(invite_to_role[invite.code], reason=f"Member joined with invite code {invite.code}")
+                
+                # We should add user to database here
+                # For now I am assuming the student is not in the database
+                # TODO: Check to see if the user is in the database already and change to an update statement
+                # This will FAIL (DBAPI IntegrityError) otherwise.
+                new_member = DbUser(ID=member.id, username=member.name, email=email, verified=verified, is_ra=is_user_RA, community=invite_to_role[invite.code].name)
+                session.add(new_member)
             else:
                 # This is a pretty fatal error, and really shouldn't occur if everything has gone right up to here.
                 print(f"{invite.code} not in invite_to_role:\n{invite_to_role=}")
             
             # Update cache
-            invites_cache[member.guild.id] = invites_now
+            invites_cache[guild.id] = invites_now
             
             # Short circuit out
+            session.commit()
             return
     
+@bot.slash_command(description="Manually begin initializing necessary information for the bot to work in this server.")
+@discord.guild_only()
+@discord.ext.commands.has_permissions(administrator=True)
+async def setup(ctx):
+    # Need to find out how to automate this.
+    # A good way is to make this run any time this bot joins a new guild,
+    # which can be done when on_guild_join event is fired.
+    # Also, adding persistence to guild_to_landing would be really cool.
+    # TODO: We need to make ORM models for Guilds and Invites in order to 
+    # persist guild_to_landing and invite_to_role.
+    # To be entirely honest, I am not sure whether we really need a database
+    # for the guild and invites at all yet, but figure we should be ready with
+    # them for if we do. It seems like the guild and invite information can all easily be 
+    # grabbed from the discord cache.
     
+    # Track the landing channel (verify) of the server
+    guild_to_landing[ctx.guild.id] = discord.utils.get(ctx.guild.channels, position=0)
+    print(f"{guild_to_landing=}")
+    
+    # Cache the invites for the guild as they currently stand (none should be present)
+    invites_cache[ctx.guild.id] = await ctx.guild.invites()
+    
+    # Finished
+    await ctx.respond("All set!")
+    
+    
+# ------------------------------- EVENT HANDLERS -------------------------------
+
+@bot.event
+async def on_member_join(member: discord.Member):
+    # Need to figure out what invite the user joined with
+    # in order to assign the correct roles.
+    
+    print(f"Member join event fired with {member.display_name}")
+    
+    # I'm thinking we should initiate verification here instead of 
+    # adding the roles, then the verify command does all of this code.
+    
+    # User is verifying for the guild they just joined
+    user_to_guild[member.id] = member.guild
+    
+    # Create a dm channel between the bot and the user
+    dm_channel = await member.create_dm()
+    
+    await dm_channel.send(content=f"Hey {member.name}! Welcome to {member.guild.name}, we hope you enjoy your stay. Before you get access to your ResLife community, we need you to verify yourself.\n\nTo do so, please type `/verify` and press enter.")
+    
+@bot.event
+async def on_guild_join(guild):
+    # Automate call of setup
+    
+    # Track the landing channel (verify) of the server
+    guild_to_landing[guild.id] = discord.utils.get(guild.channels, position=0)
+    print(f"{guild_to_landing=}")
+    
+    # Cache the invites for the guild as they currently stand (none should be present)
+    invites_cache[guild.id] = await guild.invites()
     
 @bot.event
 async def on_ready():
     # Build a default invite cache
     for guild in bot.guilds:
-        invites_cache[guild.id] = await guild.invites()
+        try:
+            invites_cache[guild.id] = await guild.invites()
+        except discord.errors.Forbidden:
+            continue
+        
+        # A little bit of a hack that prevents us from needing a database for guilds yet
+        guild_to_landing[guild.id] = discord.utils.get(guild.channels, position=0)
+    
+    print(f"{guild_to_landing=}")  
+    
 
 if DEBUG:
     print(f"""Bootstrapping bot...
