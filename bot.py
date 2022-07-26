@@ -141,7 +141,7 @@ async def verify(ctx):
     # However, in case something fails or the bot does not have permission to view
     # join events in a server, it is a good idea to have a slash command set up that 
     # will allow a user to manually trigger the verification process themselves.
-    await ctx.respond(f"Oh no! looks like this command isn't implemented yet. Check back later.")
+    await ctx.respond(f"Oh noes! looks like this command isn't implemented yet. Check back later.")
     
 @bot.slash_command(description="Manually begin initializing necessary information for the bot to work in this server.")
 @discord.guild_only()
