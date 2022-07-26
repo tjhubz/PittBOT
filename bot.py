@@ -190,6 +190,11 @@ async def on_member_join(member: discord.Member):
             
             # Need to give the member the appropriate role
             if invite.code in invite_to_role:
+                # If the invite code's use was previously zero, then we should actually give the user 
+                # the RA role, in addition to the RA X's community role.
+                if invite.uses == 0:
+                    # First use of invite
+                    await member.add_roles(discord.utils.get(member.guild.roles, name='RA'), reason=f"Member joined with first use of invite code {invite.code}")
                 await member.add_roles(invite_to_role[invite.code], reason=f"Member joined with invite code {invite.code}")
             else:
                 # This is a pretty fatal error, and really shouldn't occur if everything has gone right up to here.
