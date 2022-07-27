@@ -1,5 +1,5 @@
 # use a node base image
-FROM python3
+FROM python
 
 COPY . /PittBOT
 WORKDIR /PittBOT
