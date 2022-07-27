@@ -6,9 +6,6 @@ import sqlalchemy
 from sqlalchemy.orm import sessionmaker
 from util.db import DbUser, Base
 import util.invites
-import http.client
-import mimetypes
-import base64
 import requests
 
 
@@ -179,24 +176,37 @@ async def verify(ctx):
     
     if not member:
         await ctx.respond(f"It doesn't look like we could verify that you are in the server {guild.name}. Try `/verify` inside the server's `#verify` channel.")
-        
-    # Show modal and collect information
-    modal = VerifyModal(title="Verification",timeout=60)
-    await ctx.send_modal(modal)
     
-    # You have to actually await on_timeout, so I'm not sure what to do if the timeout fails.
-    await modal.wait()
+    email = "default"
+    
+    # Show modal and collect information
+    # Loop until a correct email address is given.
+    chances = 0 
+    while "@pitt.edu" not in email and chances < 3:
+        modal = VerifyModal(title="Verification",timeout=60)
+        
+        await ctx.send_modal(modal)
+        
+        # You have to actually await on_timeout, so I'm not sure what to do if the timeout fails.
+        await modal.wait()
+        
+        if member.id in user_to_email:
+            email = user_to_email[member.id]
+        else:
+            # Fatal error, this should never happen.
+            await ctx.respond(f"Your user ID {member.id} doesn't show up in our records! Please report this error.")
+            print(f"{user_to_email=}")
+            email = "FAILED TO VERIFY"
+            verified = False
+            
+        if "@pitt.edu" not in email:
+            await ctx.send_followup(content=f"Only @pitt.edu email addresses will be accepted")
+            chances += 1
+            continue
+        
+        break
     
     verified = True
-    
-    if member.id in user_to_email:
-        email = user_to_email[member.id]
-    else:
-        # Fatal error, this should never happen.
-        await ctx.respond(f"Your user ID {member.id} doesn't show up in our records! Please report this error.")
-        print(f"{user_to_email=}")
-        email = "FAILED TO VERIFY"
-        verified = False
     
     # This is a kind of janky method taken from this medium article:
     # https://medium.com/@tonite/finding-the-invite-code-a-user-used-to-join-your-discord-server-using-discord-py-5e3734b8f21f
@@ -227,6 +237,9 @@ async def verify(ctx):
                     is_user_RA = True
                     await member.add_roles(discord.utils.get(guild.roles, name='RA'), reason=f"Member joined with first use of invite code {invite.code}")
                 await member.add_roles(invite_to_role[invite.code], reason=f"Member joined with invite code {invite.code}")
+                
+                # Take user's ability to message verification channel away.
+                await guild_to_landing[guild.id].set_permissions(invite_to_role[invite.code], read_messages=False, send_messages=False)
                 
                 # We should add user to database here
                 # For now I am assuming the student is not in the database
