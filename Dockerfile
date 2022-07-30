@@ -1,6 +1,6 @@
 # ---- Base ----
 FROM python AS base
-ADD / /PittBOT
+ADD ./* /PittBOT
 WORKDIR /PittBOT
 
 # ---- Dependencies ----
