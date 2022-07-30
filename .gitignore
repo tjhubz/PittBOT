@@ -1,6 +1,7 @@
 env/
 .vscode/
 __pycache__/
+**/.DS_Store
 # Do not push TEST databases to the repository, since they may include private 
 # user information (user IDs, emails, living locations). Shouldn't affect actual production. 
 test.db 
