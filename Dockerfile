@@ -1,7 +1,7 @@
 # ---- Base ----
 FROM python AS base
 ADD util /PittBOT/util
-COPY bot.by /PittBOT/bot.py
+COPY bot.py /PittBOT/bot.py
 COPY config.json /PittBOT/config.json
 WORKDIR /PittBOT
 
