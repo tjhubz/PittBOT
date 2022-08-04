@@ -112,3 +112,11 @@ or, on some Unix distributions
 ```
 python3.10 bot.py
 ```
+
+# Contributing your Changes
+
+Starting in the fall semester of 2022, PittBOT will be running **live** on several ResLife servers, and so direct commits to the main, operating branch of the bot will be **disallowed**. Instead, we have set up a development branch `dev` where direct contributors can commit their changes. For others interested in making a pull request, **PRs will be made into the `dev` branch and not main**. 
+
+When you plan on making a pull request, [fork the repository](https://docs.github.com/en/get-started/quickstart/fork-a-repo), ensure the repository is [synchronized](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/syncing-a-fork), and then [create a new branch](https://docs.github.com/en/issues/tracking-your-work-with-issues/creating-a-branch-for-an-issue) to work on the specific issue that you are aiming to solve inside your fork. Once you are done working, you will make a pull request back into this repository. You can learn how to make a pull request from your fork repository [here](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request), and learn to change the base branch to pull into `dev` [here](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/changing-the-base-branch-of-a-pull-request). 
+
+Periodically, updates from the `dev` branch will be merged into `main` and become live in the bot, after ensuring they are stable enough to deploy.

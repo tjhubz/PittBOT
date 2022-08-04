@@ -150,7 +150,9 @@ async def make_categories(ctx, link: str):
             guild, ras, guild_to_landing[guild.id]
         )
         if not invite_role_dict:
-            await ctx.send_followp("Failed to make invites. Check that a #verify channel exists.")
+            await ctx.send_followp(
+                "Failed to make invites. Check that a #verify channel exists."
+            )
             return
 
         # Update invite cache, important for on_member_join's functionality
@@ -283,6 +285,7 @@ async def verify(ctx):
                     is_ra=is_user_RA,
                     community=invite_to_role[invite.code].name,
                 )
+                
                 # Use merge instead of add to handle if the user is already found in the database.
                 # Our use case may dictate that we actually want to cause an error here and
                 # disallow users to verify a second time, but this poses a couple challenges
