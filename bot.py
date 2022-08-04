@@ -1,12 +1,12 @@
+import os
 import discord
 import discord.ext
 import orjson
-import os
 import sqlalchemy
-from sqlalchemy.orm import sessionmaker
-from util.db import DbUser, Base
-import util.invites
 import requests
+from sqlalchemy.orm import sessionmaker
+import util.invites
+from util.db import DbUser, Base
 
 
 bot = discord.Bot(intents=discord.Intents.all())
@@ -63,23 +63,23 @@ Base.metadata.create_all(db)
 # ------------------------------- GLOBAL VARIABLES  -------------------------------
 
 # Guild to invites associativity
-invites_cache = dict()
+invites_cache = {}
 
 # Invite codes to role objects associativity
-invite_to_role = dict()
+invite_to_role = {}
 
 # Associate each guild with its landing channel
-guild_to_landing = dict()
+guild_to_landing = {}
 
 # This will not actually persistently associate every user with the guild they're in
 # Rather, it will be used during verification to associate a verifying user
 # with a guild, so that even if they are DMed verification rather
 # than doing it in the server, we can still know what guild they're verifying for.
 # A user CANNOT BE VERIFYING FOR MORE THAN ONE GUILD AT ONCE
-user_to_guild = dict()
+user_to_guild = {}
 
 # Cache of user IDs to their pitt email addresses
-user_to_email = dict()
+user_to_email = {}
 
 # ------------------------------- CLASSES -------------------------------
 
@@ -220,15 +220,18 @@ async def verify(ctx):
             verified = False
 
         if "@pitt.edu" not in email:
-            await ctx.send_followup(
-                content="Only @pitt.edu email addresses will be accepted"
-            )
+            await ctx.send_followup(content="Only @pitt.edu email addresses will be accepted")
             chances += 1
             continue
 
         break
 
     verified = True
+
+    pitt_username = email[: email.find("@pitt.edu")]
+
+    # Set user's nickname to provided Pitt username.
+    await member.edit(nick=pitt_username)
 
     # This is a kind of janky method taken from this medium article:
     # https://medium.com/@tonite/finding-the-invite-code-a-user-used-to-join-your-discord-server-using-discord-py-5e3734b8f21f
@@ -243,10 +246,7 @@ async def verify(ctx):
     for invite in old_invites:
         print(f"Checking {invite.code}")
         # O(n²), would love to make this faster
-        if (
-            invite.uses
-            < util.invites.get_invite_from_code(invites_now, invite.code).uses
-        ):
+        if invite.uses < util.invites.get_invite_from_code(invites_now, invite.code).uses:
 
             # Who joined and with what link
             print(f"Member {member.name} Joined")
@@ -277,9 +277,6 @@ async def verify(ctx):
                 )
 
                 # We should add user to database here
-                # For now I am assuming the student is not in the database
-                # TODO: Check to see if the user is in the database already and change to an update statement
-                # This will FAIL (DBAPI IntegrityError) otherwise.
                 new_member = DbUser(
                     ID=member.id,
                     username=member.name,
@@ -288,7 +285,12 @@ async def verify(ctx):
                     is_ra=is_user_RA,
                     community=invite_to_role[invite.code].name,
                 )
-                session.add(new_member)
+                
+                # Use merge instead of add to handle if the user is already found in the database.
+                # Our use case may dictate that we actually want to cause an error here and
+                # disallow users to verify a second time, but this poses a couple challenges
+                # including if a user leaves the server and is re-invited.
+                session.merge(new_member)
             else:
                 # This is a pretty fatal error, and really shouldn't occur if everything has gone right up to here.
                 print(f"{invite.code} not in invite_to_role:\n{invite_to_role=}")
@@ -320,13 +322,40 @@ async def setup(ctx):
 
     # Track the landing channel (verify) of the server
     guild_to_landing[ctx.guild.id] = discord.utils.get(ctx.guild.channels, position=0)
-    print(f"{guild_to_landing=}")
 
     # Cache the invites for the guild as they currently stand (none should be present)
     invites_cache[ctx.guild.id] = await ctx.guild.invites()
 
     # Finished
     await ctx.respond("All set!")
+
+
+@bot.slash_command(
+    description="Look up a user's email with their Discord ID (this is NOT their username)."
+)
+@discord.ext.commands.has_permissions(administrator=True)
+async def lookup(ctx, user_id):
+    try:
+        user = session.query(DbUser).filter_by(ID=user_id).one()
+    except:
+        user = None
+        embed = discord.Embed(
+            title="Lookup Failed",
+            description="The user ID provided did not return a user.",
+            color=discord.Colour.red(),
+        )
+        embed.add_field(name="User ID", value=f"{user_id}", inline=False)
+        
+    if user:
+        embed = discord.Embed(title="Lookup Results", color=discord.Colour.green())
+        embed.add_field(name="User ID", value=f"{user_id}", inline=False)
+        embed.add_field(name="Username", value=f"{user.username}", inline=False)
+        embed.add_field(name="Email", value=f"{user.email}", inline=False)
+        embed.add_field(name="Community", value=f"{user.community}", inline=False)
+        embed.add_field(name="Is RA?", value=f"{'Yes ✅' if user.is_ra else 'No ❌'}")
+        embed.add_field(name="Verified?", value=f"{'Yes ✅' if user.verified else 'No ❌'}")
+    
+    await ctx.respond(embed=embed)
 
 
 # ------------------------------- EVENT HANDLERS -------------------------------
@@ -359,7 +388,6 @@ async def on_guild_join(guild):
 
     # Track the landing channel (verify) of the server
     guild_to_landing[guild.id] = discord.utils.get(guild.channels, position=0)
-    print(f"{guild_to_landing=}")
 
     # Cache the invites for the guild as they currently stand (none should be present)
     invites_cache[guild.id] = await guild.invites()
@@ -376,8 +404,6 @@ async def on_ready():
 
         # A little bit of a hack that prevents us from needing a database for guilds yet
         guild_to_landing[guild.id] = discord.utils.get(guild.channels, position=0)
-
-    print(f"{guild_to_landing=}")
 
 
 if DEBUG:
