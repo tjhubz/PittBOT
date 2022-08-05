@@ -14,7 +14,7 @@ node {
         app = docker.build("tjhubz/pittbot")
     }
 
-    if(env.BRANCH_NAME == 'main'){
+    if(env.BRANCH_NAME == 'dev'){
         stage("push image"){
             docker.withRegistry('https://registry.hub.docker.com', 'docker-hub-credentials') {
                 app.push("dev")
