@@ -20,6 +20,7 @@ SENDGRID_SECRET = "default"
 DEBUG = False
 VERSION = "#.#.#"
 DATABASE_PATH = None
+HUB_SERVER_ID = 996607138803748954
 
 # ------------------------------- DATABASE -------------------------------
 
@@ -360,6 +361,52 @@ async def lookup(ctx, user_id):
 
 # ------------------------------- EVENT HANDLERS -------------------------------
 
+
+# Clones scheduled events to residence hall servers when created on the hub server
+# Does NOT support cloning event cover photos
+@bot.event
+async def on_scheduled_event_create(scheduled_event):
+  # Stops the bot from cloning events created on non-hub servers
+  if (scheduled_event.guild).id != HUB_SERVER_ID:
+    return
+  # Iterates through the residence hall servers and copies the event to each one, skipping the hub server
+  for guild in bot.guilds:
+    if guild.id == HUB_SERVER_ID:
+      continue
+    await guild.create_scheduled_event(name=scheduled_event.name, description=scheduled_event.description, location=scheduled_event.location, start_time=scheduled_event.start_time, end_time=scheduled_event.end_time)
+  
+# Syncs updates to scheduled events across residence hall servers
+# Does NOT support editing the title ("topic") of the event
+# If the title must be changed, delete the event and create a new one
+@bot.event
+async def on_scheduled_event_update(old_scheduled_event, new_scheduled_event):
+  # Stops the bot from syncing edits initiated on non-hub servers
+  if (new_scheduled_event.guild).id != HUB_SERVER_ID:
+    return
+  # Iterates through the residence hall servers, skipping the hub server
+  for guild in bot.guilds:
+    if guild.id == HUB_SERVER_ID:
+      continue
+    # Iterates through the events in each residence hall server to find and edit the correct one
+    for scheduled_event in guild.scheduled_events:
+      if scheduled_event.name == new_scheduled_event.name:
+        await scheduled_event.edit(description=new_scheduled_event.description, location=new_scheduled_event.location, start_time=new_scheduled_event.start_time, end_time=new_scheduled_event.end_time)
+
+# Syncs scheduled event cancellation across residence hall servers
+# Cancels all events with the same name as the canceled event
+@bot.event
+async def on_scheduled_event_delete(deleted_event):
+  # Stops the bot from syncing cancellations initiated on non-hub servers
+  if (deleted_event.guild).id != HUB_SERVER_ID:
+    return
+  # Iterates through the residence hall servers, skipping the hub server
+  for guild in bot.guilds:
+    if guild.id == HUB_SERVER_ID:
+      continue
+    # Iterates through the events in each residence hall server to find and delete the correct one
+    for scheduled_event in guild.scheduled_events:
+      if scheduled_event.name == deleted_event.name:
+        await scheduled_event.delete()
 
 @bot.event
 async def on_member_join(member: discord.Member):
