@@ -194,7 +194,9 @@ async def hi(ctx, user):
     await ctx.respond(f"{ctx.author.mention} says hello to {user.name}!")
 
 
-@bot.slash_command()
+@bot.slash_command(
+    description="Create categories based off of a hastebin/pastebin list of RA names."
+)
 @discord.guild_only()
 @discord.ext.commands.has_permissions(manage_channels=True)
 async def make_categories(ctx, link: str):
@@ -250,7 +252,9 @@ async def make_categories(ctx, link: str):
         await ctx.respond("Sorry! This command has to be used in a guild context.")
 
 
-@bot.slash_command()
+@bot.slash_command(
+    description="Verify yourself to start using ResLife servers!"
+)
 async def verify(ctx):
     # Verification will usually happen when a user joins a server with the bot.
     # However, in case something fails or the bot does not have permission to view
