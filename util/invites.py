@@ -101,7 +101,11 @@ async def make_categories(
 
         # Generate an invite.
         if landing_channel:
-            invite = await landing_channel.create_invite()
+            try:
+                invite = await landing_channel.create_invite()
+            # Abnormal debugging issue
+            except discord.errors.NotFound:
+                print("No such channel exists, dumping channel object: {landing_channel=}")
         else:
             return None
         print(f"{invite.channel}")

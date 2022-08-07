@@ -105,6 +105,48 @@ class VerifyModal(discord.ui.Modal):
 
     async def on_timeout(self):
         self.stop()
+        
+        
+class ConfirmModal(discord.ui.Modal):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.add_item(discord.ui.InputText(label="Type Yes to Confirm"))
+
+    async def callback(self, interaction: discord.Interaction):
+        if self.children[0].value.lower() == "yes":
+            try:
+                guild_obj = session.query(DbGuild).filter_by(ID=interaction.guild.id).one()
+            except Exception as ex:
+                guild_obj = None
+                
+            if guild_obj:
+                guild_obj.is_setup = False
+                guild_obj.landing_channel_id = None
+                guild_obj.ra_role_id = None
+                session.merge(guild_obj)
+                try:
+                    session.commit()
+                except Exception as ex:
+                    await interaction.response.send_message(
+                        "An unexpected database error occurred."
+                    )
+                    print(ex.with_traceback())
+                    return
+                else:
+                    await interaction.response.send_message(
+                        f"Setup status has been reset for guild with ID {interaction.guild.id}"
+                    )
+            else:
+                await interaction.response.send_message(
+                    "The guild you are trying to reset does not exist."
+                )
+        else:
+            await interaction.response.send_message(
+                "Operation cancelled."
+            )
+
+    async def on_timeout(self):
+        self.stop()
 
 
 class VerifyView(discord.ui.View):
@@ -389,12 +431,24 @@ async def setup(ctx):
 
     # Create a view that will contain a button which can be used to initialize the verification process
     view = VerifyView(timeout=None)
-
-    # Finished
-    await ctx.respond(
-        "Hey new people! Click the button below to get verified!", view=view
+    
+    guild_to_landing[ctx.guild.id].send_message(
+        "Hey new people! Click below to verify.",
+        view=view
     )
 
+    # Finished
+    await ctx.respond("Setup finished.")
+    
+@bot.slash_command(
+    name="unsetup",
+    description="Reset a server's setup-status. Only use this if you know what you're doing.",
+)
+@discord.ext.commands.has_permissions(administrator=True)
+async def unsetup(ctx):
+    dialog = ConfirmModal(timeout=60)
+    
+    await ctx.response.send_modal(dialog)
 
 @bot.slash_command(
     description="Reset a user's email to a specific value using their ID"
