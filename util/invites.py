@@ -28,7 +28,7 @@ def get_invite_from_code(invites, code):
 
 
 def read_from_haste(link: str):
-    """Read a list of RAs from a RAW hastebin link containing a return-delimited list of RAs for a server. 
+    """Read a list of RAs from a RAW hastebin link containing a return-delimited list of RAs for a server.
     It is VERY important this link is the RAW link, or parsing will FAIL.
 
     Args:
@@ -91,7 +91,9 @@ async def make_categories(
         # Create the RA's category
         category = await guild.create_category(
             f"RA {first_name.title()}'s Community",
-            overwrites={guild.default_role: discord.PermissionOverwrite(read_messages=False)},
+            overwrites={
+                guild.default_role: discord.PermissionOverwrite(read_messages=False)
+            },
         )
 
         # Create the text and voice channels
@@ -104,9 +106,15 @@ async def make_categories(
                 invite = await landing_channel.create_invite()
             # Abnormal debugging issue
             except discord.errors.NotFound:
-                print("No such channel exists, dumping channel object: {landing_channel=}")
+                print(
+                    "No such channel exists, dumping channel object: {landing_channel=}"
+                )
         else:
             return None
+
+        welcome_category = discord.utils.get(
+            landing_channel.guild.categories, name="building"
+        )
 
         ras_with_links.append(f"{ra_line} : {invite.url}\n")
 
@@ -118,6 +126,7 @@ async def make_categories(
             permissions=Permissions.general(),
         )
         await category.set_permissions(new_role, read_messages=True)
+        await welcome_category.set_permissions(new_role, read_messages=True)
 
         invite_to_role[invite.code] = new_role
 

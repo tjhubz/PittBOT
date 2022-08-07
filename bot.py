@@ -149,30 +149,6 @@ class UnsetupConfirmation(discord.ui.Modal):
         self.stop()
 
 
-class PurgeDatabase(discord.ui.Modal):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.add_item(discord.ui.InputText(label="Type Yes to Confirm"))
-
-    async def callback(self, interaction: discord.Interaction):
-        if self.children[0].value.lower() == "yes":
-            try:
-                Base.metadata.drop_all()
-                Base.metadata.create_all()
-            except Exception as ex:
-                await interaction.response.send_message(
-                    "Could not reset database, try manually?"
-                )
-                print(ex.with_traceback())
-            else:
-                await interaction.response.send_message("All tables were reset.")
-        else:
-            await interaction.response.send_message("Operation cancelled.")
-
-    async def on_timeout(self):
-        self.stop()
-
-
 class VerifyView(discord.ui.View):
     @discord.ui.button(label="Verify", style=discord.ButtonStyle.primary)
     async def verify_callback(self, button, interaction):
@@ -252,9 +228,7 @@ async def make_categories(ctx, link: str):
         await ctx.respond("Sorry! This command has to be used in a guild context.")
 
 
-@bot.slash_command(
-    description="Verify yourself to start using ResLife servers!"
-)
+@bot.slash_command(description="Verify yourself to start using ResLife servers!")
 async def verify(ctx):
     # Verification will usually happen when a user joins a server with the bot.
     # However, in case something fails or the bot does not have permission to view
@@ -475,17 +449,6 @@ async def setup(ctx):
 @discord.ext.commands.has_permissions(administrator=True)
 async def unsetup(ctx):
     dialog = UnsetupConfirmation(title="Confirm Unsetup", timeout=60)
-
-    await ctx.response.send_modal(dialog)
-
-
-@bot.slash_command(
-    name="destroy",
-    description="Destroy's bot's entire database. NEVER USE THIS OUTSIDE OF DEVELOPMENT.",
-)
-@discord.ext.commands.has_permissions(administrator=True)
-async def purge(ctx):
-    dialog = PurgeDatabase(title="Destroy Database", timeout=60)
 
     await ctx.response.send_modal(dialog)
 
