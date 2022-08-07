@@ -28,7 +28,8 @@ def get_invite_from_code(invites, code):
 
 
 def read_from_haste(link: str):
-    """Read a list of RAs from a RAW hastebin link containing a return-delimited list of RAs for a server. It is VERY important this link is the RAW link, or parsing will FAIL.
+    """Read a list of RAs from a RAW hastebin link containing a return-delimited list of RAs for a server. 
+    It is VERY important this link is the RAW link, or parsing will FAIL.
 
     Args:
         link (str): Link to raw hastebin with return-separated RA list..
@@ -90,9 +91,7 @@ async def make_categories(
         # Create the RA's category
         category = await guild.create_category(
             f"RA {first_name.title()}'s Community",
-            overwrites={
-                guild.default_role: discord.PermissionOverwrite(read_messages=False)
-            },
+            overwrites={guild.default_role: discord.PermissionOverwrite(read_messages=False)},
         )
 
         # Create the text and voice channels
@@ -108,7 +107,7 @@ async def make_categories(
                 print("No such channel exists, dumping channel object: {landing_channel=}")
         else:
             return None
-        print(f"{invite.channel}")
+
         ras_with_links.append(f"{ra_line} : {invite.url}\n")
 
         # Generate a role to associate with the community.
