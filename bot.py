@@ -480,7 +480,7 @@ async def unsetup(ctx):
     description="Destroy's bot's entire database. NEVER USE THIS OUTSIDE OF DEVELOPMENT.",
 )
 @discord.ext.commands.has_permissions(administrator=True)
-async def unsetup(ctx):
+async def purge(ctx):
     dialog = PurgeDatabase(title="Destroy Database", timeout=60)
 
     await ctx.response.send_modal(dialog)
