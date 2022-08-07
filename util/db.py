@@ -52,7 +52,7 @@ class DbGuild(Base):
     # Whether the Guild has undergone initial setup or not
     is_setup = Column("setup", Boolean)
     # RA Role ID
-    RA_role_id = Column("raRoleID", BigInteger().with_variant(Integer, "sqlite"))
+    ra_role_id = Column("raRoleID", BigInteger().with_variant(Integer, "sqlite"))
     # Landing channel ID
     landing_channel_id = Column(
         "landingChannelID", BigInteger().with_variant(Integer, "sqlite")
