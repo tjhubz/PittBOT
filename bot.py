@@ -92,7 +92,7 @@ class VerifyModal(discord.ui.Modal):
         user_to_email[interaction.user.id] = self.children[0].value
         if "@pitt.edu" in self.children[0].value:
             await interaction.response.send_message(
-                f"Welcome {interaction.user.mention}! We have you verified with email '{user_to_email[interaction.user.id]}'. Enjoy your stay!",
+                f"Welcome {interaction.user.mention}! Thank you for verifying.",
                 ephemeral=True
             )
         else:
@@ -664,7 +664,7 @@ async def on_member_join(member: discord.Member):
     dm_channel = await member.create_dm()
 
     await dm_channel.send(
-        content=f"Hey {member.name}! Welcome to {member.guild.name}, we hope you enjoy your stay. Before you get access to your ResLife community, we need you to verify yourself.\n\nTo do so, please type `/verify` and press enter.",
+        content=f"Hey {member.name}! Welcome to {member.guild.name}. Before you get access to your ResLife community, we need you to verify yourself.\n\nTo do so, please see the verification channel in the server or type `/verify` and press enter.",
     )
 
 
@@ -714,7 +714,7 @@ async def on_guild_join(guild):
 
     # Finished
     await guild_to_landing[guild.id].send(
-        content="Hey new people! Click the button below to get verified!", view=view
+        content="Click the button below to get verified!", view=view
     )
 
 
