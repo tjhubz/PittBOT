@@ -15,6 +15,8 @@ bot = discord.Bot(intents=discord.Intents.all())
 # ------------------------------- INITIALIZATION -------------------------------
 
 TOKEN = "default"  # In a production environment, replace this with the real token
+QUALTRICS_OAUTH_SECRET = "default"
+QUALTRICS_CLIENT_ID = "default"
 SENDGRID_SECRET = "default"
 DEBUG = False
 VERSION = "#.#.#"
@@ -37,6 +39,8 @@ with open("config.json", "r") as config:
         case "debug":
             DEBUG = True
             TOKEN = os.getenv("PITTBOT_TOKEN")
+            QUALTRICS_OAUTH_SECRET = os.getenv("QUALTRICS_OAUTH_SECRET")
+            QUALTRICS_CLIENT_ID = os.getenv("QUALTRICS_CLIENT_ID")
             SENDGRID_SECRET = os.getenv("SENDGRID_TOKEN")
         case "production":
             DEBUG = False
@@ -92,11 +96,11 @@ class VerifyModal(discord.ui.Modal):
         user_to_email[interaction.user.id] = self.children[0].value
         if "@pitt.edu" in self.children[0].value:
             await interaction.response.send_message(
-                f"Welcome to the server {name}! Thank you for verifing.",delete_after=3
+                f"All set! We have your email address saved as {user_to_email[interaction.user.id]}"
             )
         else:
             await interaction.response.send_message(
-                f"Only @pitt.edu emails will be accepted. Please re-verify by typing `/verify` or pressing the button.",delete_after=10
+                f"Only @pitt.edu emails will be accepted. Please re-verify by typing `/verify` or pressing the button."
             )
 
     async def on_timeout(self):
@@ -578,6 +582,13 @@ async def on_member_join(member: discord.Member):
     # User is verifying for the guild they just joined
     user_to_guild[member.id] = member.guild
 
+    # Create a dm channel between the bot and the user
+    dm_channel = await member.create_dm()
+
+    await dm_channel.send(
+        content=f"Hey {member.name}! Welcome to {member.guild.name}, we hope you enjoy your stay. Before you get access to your ResLife community, we need you to verify yourself.\n\nTo do so, please type `/verify` and press enter."
+    )
+
 
 @bot.event
 async def on_guild_join(guild):
@@ -625,7 +636,7 @@ async def on_guild_join(guild):
 
     # Finished
     await guild_to_landing[guild.id].send(
-        content="Click the button below to get verified!", view=view
+        content="Hey new people! Click the button below to get verified!", view=view
     )
 
 

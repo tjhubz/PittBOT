@@ -98,7 +98,7 @@ async def make_categories(
 
         # Create the text and voice channels
         text_channel = await category.create_text_channel("chat")
-        await category.create_voice_channel("voice")
+        await category.create_voice_channel("Voice")
 
         # Generate an invite.
         if landing_channel:
@@ -123,7 +123,7 @@ async def make_categories(
         new_role = await guild.create_role(
             name=f"RA {first_name.title()}'s Community",
             color=Colour.blue(),
-            permissions=Permissions(view_channel),
+            permissions=Permissions.general(),
         )
         await category.set_permissions(new_role, read_messages=True)
         await welcome_category.set_permissions(new_role, read_messages=True)
