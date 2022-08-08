@@ -15,9 +15,6 @@ bot = discord.Bot(intents=discord.Intents.all())
 # ------------------------------- INITIALIZATION -------------------------------
 
 TOKEN = "default"  # In a production environment, replace this with the real token
-QUALTRICS_OAUTH_SECRET = "default"
-QUALTRICS_CLIENT_ID = "default"
-SENDGRID_SECRET = "default"
 DEBUG = False
 VERSION = "#.#.#"
 DATABASE_PATH = None
@@ -41,9 +38,6 @@ with open("config.json", "r") as config:
         case "debug":
             DEBUG = True
             TOKEN = os.getenv("PITTBOT_TOKEN")
-            QUALTRICS_OAUTH_SECRET = os.getenv("QUALTRICS_OAUTH_SECRET")
-            QUALTRICS_CLIENT_ID = os.getenv("QUALTRICS_CLIENT_ID")
-            SENDGRID_SECRET = os.getenv("SENDGRID_TOKEN")
         case "production":
             DEBUG = False
 
@@ -457,7 +451,7 @@ async def setup(ctx):
     view = VerifyView(timeout=None)
 
     await guild_to_landing[ctx.guild.id].send(
-        "Hey new people! Click below to verify.", view=view
+        "Click below to verify.", view=view
     )
 
     # Finished
