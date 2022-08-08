@@ -117,13 +117,15 @@ async def make_categories(
         )
 
         ras_with_links.append(f"{ra_line} : {invite.url}\n")
+        
+        perms = Permissions(view_channel=True)
 
         # Generate a role to associate with the community.
         # TODO: Generate accurate permissions for this.
         new_role = await guild.create_role(
             name=f"RA {first_name.title()}'s Community",
             color=Colour.blue(),
-            permissions=Permissions.general(),
+            permissions=perms,
         )
         await category.set_permissions(new_role, read_messages=True)
         await welcome_category.set_permissions(new_role, read_messages=True)

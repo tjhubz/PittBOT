@@ -22,6 +22,8 @@ DEBUG = False
 VERSION = "#.#.#"
 DATABASE_PATH = None
 HUB_SERVER_ID = 996607138803748954
+LONG_DELETE_TIME = 60.0
+SHORT_DELETE_TIME = 15.0
 
 # ------------------------------- DATABASE -------------------------------
 
@@ -96,11 +98,13 @@ class VerifyModal(discord.ui.Modal):
         user_to_email[interaction.user.id] = self.children[0].value
         if "@pitt.edu" in self.children[0].value:
             await interaction.response.send_message(
-                f"All set! We have your email address saved as {user_to_email[interaction.user.id]}"
+                f"Welcome {interaction.user.mention}! We have you verified with email '{user_to_email[interaction.user.id]}'. Enjoy your stay!",
+                ephemeral=True
             )
         else:
             await interaction.response.send_message(
-                f"Only @pitt.edu emails will be accepted. Please re-verify by typing `/verify` or pressing the button."
+                "Only @pitt.edu emails will be accepted. Please re-verify by typing `/verify` or pressing the button.",
+                ephemeral=True
             )
 
     async def on_timeout(self):
@@ -130,20 +134,26 @@ class UnsetupConfirmation(discord.ui.Modal):
                     session.commit()
                 except Exception as ex:
                     await interaction.response.send_message(
-                        "An unexpected database error occurred."
+                        "An unexpected database error occurred.",
+                        ephemeral=True
                     )
                     print(ex.with_traceback())
                     return
                 else:
                     await interaction.response.send_message(
-                        f"Setup status has been reset for guild with ID {interaction.guild.id}"
+                        f"Setup status has been reset for guild with ID {interaction.guild.id}",
+                        ephemeral=True
                     )
             else:
                 await interaction.response.send_message(
-                    "The guild you are trying to reset does not exist."
+                    "The guild you are trying to reset does not exist.",
+                    ephemeral=True
                 )
         else:
-            await interaction.response.send_message("Operation cancelled.")
+            await interaction.response.send_message(
+                "Operation cancelled.",
+                ephemeral=True
+            )
 
     async def on_timeout(self):
         self.stop()
@@ -157,77 +167,10 @@ class VerifyView(discord.ui.View):
 
 # ------------------------------- COMMANDS -------------------------------
 
-# These are just for testing and will be
-# removed as soon as we know the bot works
-@bot.slash_command()
-async def hello(ctx, name: str = None):
-    name = name or ctx.author.mention
-    await ctx.respond(f"Hello {name}!")
-
-
-@bot.user_command(name="Say Hello")
-async def hi(ctx, user):
-    await ctx.respond(f"{ctx.author.mention} says hello to {user.name}!")
-
-
-@bot.slash_command(
-    description="Create categories based off of a hastebin/pastebin list of RA names."
-)
-@discord.guild_only()
-@discord.ext.commands.has_permissions(manage_channels=True)
-async def make_categories(ctx, link: str):
-    # Defer a response to prevent the 3 second timeout gate from being closed.
-    await ctx.defer()
-
-    # If we actually are in a guild (this is a redundant check and can probably be
-    # removed, figuring the @discord.guild_only() decorator is provided, but I figured
-    # a graceful close just in case)
-    if ctx.guild:
-        guild = ctx.guild
-        # Read the list of RAs from a RAW hastebin file. It is SIGNIFICANT that the
-        # link is to a RAW hastebin, or it will not be parsed correctly.
-        if "raw" not in link:
-            await ctx.send_followup(
-                "Uh oh! You need to send a `raw` hastebin link. Click the 'Just Text' button on hastebin to get one."
-            )
-            return
-
-        # Guard request in case of status code fail
-        try:
-            ras = util.invites.read_from_haste(link)
-        except requests.RequestException:
-            await ctx.send_followup(
-                "The given link returned a failure status code when queried. Are you sure it's valid?"
-            )
-            return
-
-        # Make the categories. This also makes their channels, the roles, and a text file
-        # called 'ras-with-links.txt' that returns the list of RAs with the associated invite links.
-        invite_role_dict = await util.invites.make_categories(
-            guild, ras, guild_to_landing[guild.id]
-        )
-        if not invite_role_dict:
-            await ctx.send_followp(
-                "Failed to make invites. Check that a #verify channel exists."
-            )
-            return
-
-        # Update invite cache, important for on_member_join's functionality
-        invites_cache[guild.id] = await guild.invites()
-
-        # Iterate over the invites, adding the new role object
-        # to our global dict if it was just created.
-        for invite in invites_cache[guild.id]:
-            if invite.code in invite_role_dict:
-                invite_to_role[invite.code] = invite_role_dict[invite.code]
-
-        # Upload the file containing the links and ra names as an attachment, so they
-        # can be distributed to the RAs to share.
-        await ctx.send_followup(file=discord.File("ras-with-links.txt"))
-    else:
-        await ctx.respond("Sorry! This command has to be used in a guild context.")
-
-
+# This has to, for some reason, stay here, 
+# or else the discord.ext module cannot load for the next command.
+# One command without the .ext module loaded NEEDS to be registered
+# before .ext can be loaded. Weird bug in discord.py/its forks, I guess.
 @bot.slash_command(description="Verify yourself to start using ResLife servers!")
 async def verify(ctx):
     # Verification will usually happen when a user joins a server with the bot.
@@ -247,7 +190,10 @@ async def verify(ctx):
 
     if user:
         if user.verified:
-            await ctx.response.send_message("You're already verified! Congrats 🎉")
+            await ctx.response.send_message(
+                "You're already verified! Congrats 🎉",
+                ephemeral=True
+            )
             return
 
     if author.id in user_to_guild:
@@ -257,14 +203,16 @@ async def verify(ctx):
         guild = ctx.guild
     else:
         await ctx.response.send_message(
-            "We weren't able to figure out which server you were trying to verify for. Try `/verify` inside the server's `#verify` channel."
+            "We weren't able to figure out which server you were trying to verify for. Try `/verify` inside the server's `#verify` channel.",
+            ephemeral=True
         )
 
     member = discord.utils.get(guild.members, id=author.id)
 
     if not member:
         await ctx.response.send_message(
-            f"It doesn't look like we could verify that you are in the server {guild.name}. Try `/verify` inside the server's `#verify` channel."
+            f"It doesn't look like we could verify that you are in the server {guild.name}. Try `/verify` inside the server's `#verify` channel.",
+            ephemeral=True
         )
 
     email = "default"
@@ -281,7 +229,8 @@ async def verify(ctx):
     else:
         # Fatal error, this should never happen.
         await ctx.followup.send(
-            f"Your user ID {member.id} doesn't show up in our records! Please report this error."
+            f"Your user ID {member.id} doesn't show up in our records! Please report this error.",
+            ephemeral=True
         )
         print(f"{user_to_email=}")
         email = "FAILED TO VERIFY"
@@ -289,6 +238,10 @@ async def verify(ctx):
 
     if "@pitt.edu" not in email:
         return
+    
+    # Set the user's nickname to their email address on successful verification
+    nickname = email[:email.find("@pitt.edu")]
+    await member.edit(nick=nickname)
 
     verified = True
 
@@ -326,6 +279,7 @@ async def verify(ctx):
                         discord.utils.get(guild.roles, name="RA"),
                         reason=f"Member joined with first use of invite code {invite.code}",
                     )
+                    
                 await member.add_roles(
                     invite_to_role[invite.code],
                     reason=f"Member joined with invite code {invite.code}",
@@ -368,6 +322,70 @@ async def verify(ctx):
 
 
 @bot.slash_command(
+    description="Create categories based off of a hastebin/pastebin list of RA names."
+)
+@discord.guild_only()
+@discord.ext.commands.has_permissions(manage_channels=True)
+async def make_categories(ctx, link: str):
+    # Defer a response to prevent the 3 second timeout gate from being closed.
+    await ctx.defer()
+
+    # If we actually are in a guild (this is a redundant check and can probably be
+    # removed, figuring the @discord.guild_only() decorator is provided, but I figured
+    # a graceful close just in case)
+    if ctx.guild:
+        guild = ctx.guild
+        # Read the list of RAs from a RAW hastebin file. It is SIGNIFICANT that the
+        # link is to a RAW hastebin, or it will not be parsed correctly.
+        if "raw" not in link:
+            await ctx.send_followup(
+                "Uh oh! You need to send a `raw` hastebin link. Click the 'Just Text' button on hastebin to get one.",
+                ephemeral=True
+            )
+            return
+
+        # Guard request in case of status code fail
+        try:
+            ras = util.invites.read_from_haste(link)
+        except requests.RequestException:
+            await ctx.send_followup(
+                "The given link returned a failure status code when queried. Are you sure it's valid?",
+                ephemeral=True
+            )
+            return
+
+        # Make the categories. This also makes their channels, the roles, and a text file
+        # called 'ras-with-links.txt' that returns the list of RAs with the associated invite links.
+        invite_role_dict = await util.invites.make_categories(
+            guild, ras, guild_to_landing[guild.id]
+        )
+        if not invite_role_dict:
+            await ctx.send_followp(
+                "Failed to make invites. Check that a #verify channel exists.",
+                ephemeral=True
+            )
+            return
+
+        # Update invite cache, important for on_member_join's functionality
+        invites_cache[guild.id] = await guild.invites()
+
+        # Iterate over the invites, adding the new role object
+        # to our global dict if it was just created.
+        for invite in invites_cache[guild.id]:
+            if invite.code in invite_role_dict:
+                invite_to_role[invite.code] = invite_role_dict[invite.code]
+
+        # Upload the file containing the links and ra names as an attachment, so they
+        # can be distributed to the RAs to share.
+        await ctx.send_followup(file=discord.File("ras-with-links.txt"))
+    else:
+        await ctx.respond(
+            "Sorry! This command has to be used in a guild context.",
+            ephemeral=True
+        )
+
+
+@bot.slash_command(
     description="Manually begin initializing necessary information for the bot to work in this server."
 )
 @discord.guild_only()
@@ -389,7 +407,10 @@ async def setup(ctx):
 
     if exists_guild:
         if exists_guild.is_setup:
-            await ctx.response.send_message("This server has already been set up!")
+            await ctx.response.send_message(
+                "This server has already been set up!",
+                ephemeral=True
+            )
             return
 
     # Track the landing channel (verify) of the server
@@ -413,7 +434,8 @@ async def setup(ctx):
             )
         except discord.Forbidden:
             await ctx.followup.send(
-                "Attempted to create an RA role but do not have valid permissions."
+                "Attempted to create an RA role but do not have valid permissions.",
+                ephemeral=True
             )
 
     this_guild = DbGuild(
@@ -439,7 +461,10 @@ async def setup(ctx):
     )
 
     # Finished
-    await ctx.respond("Setup finished.")
+    await ctx.respond(
+        "Setup finished.",
+        ephemeral=True
+    )
 
 
 @bot.slash_command(
@@ -462,7 +487,10 @@ async def set_email(ctx, user_id, email):
         user = session.query(DbUser).filter_by(ID=user_id).one()
     except:
         user = None
-        await ctx.respond(f"User ID did not return a database row: {user_id}")
+        await ctx.respond(
+            f"User ID did not return a database row: {user_id}",
+            ephemeral=True
+        )
         return
 
     user.email = email
@@ -472,11 +500,15 @@ async def set_email(ctx, user_id, email):
         session.commit()
     except Exception as ex:
         await ctx.respond(
-            "An unexpected database error occurred. Attempting to print traceback."
+            "An unexpected database error occurred. Attempting to print traceback.",
+            ephemeral=True
         )
         print(ex.with_traceback())
     else:
-        await ctx.respond(f"User with ID {user_id} set email to {email}")
+        await ctx.respond(
+            f"User with ID {user_id} set email to {email}",
+            ephemeral=True
+        )
 
 
 @bot.slash_command(
@@ -586,7 +618,7 @@ async def on_member_join(member: discord.Member):
     dm_channel = await member.create_dm()
 
     await dm_channel.send(
-        content=f"Hey {member.name}! Welcome to {member.guild.name}, we hope you enjoy your stay. Before you get access to your ResLife community, we need you to verify yourself.\n\nTo do so, please type `/verify` and press enter."
+        content=f"Hey {member.name}! Welcome to {member.guild.name}, we hope you enjoy your stay. Before you get access to your ResLife community, we need you to verify yourself.\n\nTo do so, please type `/verify` and press enter.",
     )
 
 
