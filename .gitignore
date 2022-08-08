@@ -1,5 +1,6 @@
 env/
 .vscode/
+.venv/
 __pycache__/
 **/.DS_Store
 # Do not push TEST databases to the repository, since they may include private 
