@@ -123,7 +123,7 @@ async def make_categories(
         new_role = await guild.create_role(
             name=f"RA {first_name.title()}'s Community",
             color=Colour.blue(),
-            permissions=Permissions.view_channel,
+            permissions=Permissions(view_channel),
         )
         await category.set_permissions(new_role, read_messages=True)
         await welcome_category.set_permissions(new_role, read_messages=True)
