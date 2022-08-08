@@ -504,6 +504,58 @@ async def set_email(ctx, user_id, email):
             ephemeral=True
         )
 
+@bot.slash_command(
+    description="Reset a user's email to a specific value using their ID"
+)
+@discord.guild_only()
+@discord.ext.commands.has_permissions(administrator=True)
+async def set_ra(ctx, user_id):
+    try:
+        user = session.query(DbUser).filter_by(ID=user_id).one()
+    except:
+        user = None
+        await ctx.respond(
+            f"User ID did not return a database row: {user_id}",
+            ephemeral=True
+        )
+        return
+    
+    member = discord.utils.get(ctx.guild.members, id=user_id)
+    if not member:
+        await ctx.respond(
+            f"I couldn't find a member with the id {user_id}.",
+            ephemeral=True
+        )
+        return
+    
+    try:
+       await member.add_roles(
+            discord.utils.get(ctx.guild.roles, name="RA"),
+            reason=f"Member was manually assigned RA position",
+        )
+    except discord.errors.Forbidden:
+        await ctx.respond(
+            "I don't have permission to modify this user's roles. Ensure that my bot role is higher on the role list than the user's highest role.",
+            ephemeral=True
+        )
+        
+    user.is_ra = True
+
+    session.merge(user)
+    
+    try:
+        session.commit()
+    except Exception as ex:
+        await ctx.respond(
+            "An unexpected database error occurred. Attempting to print traceback.",
+            ephemeral=True
+        )
+        print(ex.with_traceback())
+    else:
+        await ctx.respond(
+            f"User with ID {user_id} set to RA in database",
+            ephemeral=True
+        )
 
 @bot.slash_command(
     description="Look up a user's email with their Discord ID (this is NOT their username)."

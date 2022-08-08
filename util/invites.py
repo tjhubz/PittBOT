@@ -112,9 +112,18 @@ async def make_categories(
         else:
             return None
 
-        welcome_category = discord.utils.get(
+        building_category = discord.utils.get(
             landing_channel.guild.categories, name="building"
         )
+        
+        welcome_category = discord.utils.get(
+            landing_channel.guild.categories, name="welcome!"
+        )
+        
+        if not welcome_category:
+            welcome_category = discord.utils.get(
+                landing_channel.guild.categories, name="welcome"
+            )
 
         ras_with_links.append(f"{ra_line} : {invite.url}\n")
         
@@ -128,6 +137,7 @@ async def make_categories(
             permissions=perms,
         )
         await category.set_permissions(new_role, read_messages=True)
+        await building_category.set_permissions(new_role, read_messages=True)
         await welcome_category.set_permissions(new_role, read_messages=True)
 
         invite_to_role[invite.code] = new_role
