@@ -1,5 +1,5 @@
 {
     "mode": "debug",
-    "version": "0.0.1",
-    "database_path": "dbs/test.db"
+    "version": "0.1.0",
+    "database_path": "dbs/main.db"
 }

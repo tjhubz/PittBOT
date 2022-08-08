@@ -4,7 +4,8 @@ __pycache__/
 **/.DS_Store
 # Do not push TEST databases to the repository, since they may include private 
 # user information (user IDs, emails, living locations). Shouldn't affect actual production. 
-test.db 
+*.db 
+Jenkinsfile
 # NOTE: Do NOT put "config.json" in the gitignore. It doesn't contain any sensitive
 # information and it will make it easier for everyone if it's pushed to repo during
 # development.
