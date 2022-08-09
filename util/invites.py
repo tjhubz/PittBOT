@@ -117,7 +117,7 @@ async def make_categories(
         )
         
         welcome_category = discord.utils.get(
-            landing_channel.guild.categories, name="welcome"
+            landing_channel.guild.categories, name="info"
         )
 
         ras_with_links.append(f"{ra_line} : {invite.url}\n")

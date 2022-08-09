@@ -82,13 +82,13 @@ class DbInvite(Base):
 
     # Invite code
     code = Column(
-        "code", BigInteger().with_variant(Integer, "sqlite"), primary_key=True
+        "code", String, primary_key=True
     )
     # Which guild it belongs to
     guild_id = Column("guildID", BigInteger().with_variant(Integer, "sqlite"))
     # The role ID that this invite is associated with
     role_id = Column("roleID", BigInteger().with_variant(Integer, "sqlite"))
-    # Uses
+    # Uses (completely unnecessary column)
     uses = Column("uses", Integer)
 
     def __repr__(self):

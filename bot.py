@@ -7,7 +7,7 @@ import sqlalchemy
 import requests
 from sqlalchemy.orm import sessionmaker
 import util.invites
-from util.db import DbGuild, DbUser, Base
+from util.db import DbGuild, DbInvite, DbUser, Base
 
 
 bot = discord.Bot(intents=discord.Intents.all())
@@ -93,12 +93,12 @@ class VerifyModal(discord.ui.Modal):
         if "@pitt.edu" in self.children[0].value:
             await interaction.response.send_message(
                 f"Welcome {interaction.user.mention}! Thank you for verifying.",
-                ephemeral=True
+                ephemeral=True,
             )
         else:
             await interaction.response.send_message(
                 "Only @pitt.edu emails will be accepted. Please re-verify by typing `/verify` or pressing the button.",
-                ephemeral=True
+                ephemeral=True,
             )
 
     async def on_timeout(self):
@@ -128,25 +128,22 @@ class UnsetupConfirmation(discord.ui.Modal):
                     session.commit()
                 except Exception as ex:
                     await interaction.response.send_message(
-                        "An unexpected database error occurred.",
-                        ephemeral=True
+                        "An unexpected database error occurred.", ephemeral=True
                     )
                     print(ex.with_traceback())
                     return
                 else:
                     await interaction.response.send_message(
                         f"Setup status has been reset for guild with ID {interaction.guild.id}",
-                        ephemeral=True
+                        ephemeral=True,
                     )
             else:
                 await interaction.response.send_message(
-                    "The guild you are trying to reset does not exist.",
-                    ephemeral=True
+                    "The guild you are trying to reset does not exist.", ephemeral=True
                 )
         else:
             await interaction.response.send_message(
-                "Operation cancelled.",
-                ephemeral=True
+                "Operation cancelled.", ephemeral=True
             )
 
     async def on_timeout(self):
@@ -161,7 +158,7 @@ class VerifyView(discord.ui.View):
 
 # ------------------------------- COMMANDS -------------------------------
 
-# This has to, for some reason, stay here, 
+# This has to, for some reason, stay here,
 # or else the discord.ext module cannot load for the next command.
 # One command without the .ext module loaded NEEDS to be registered
 # before .ext can be loaded. Weird bug in discord.py/its forks, I guess.
@@ -185,8 +182,7 @@ async def verify(ctx):
     if user:
         if user.verified:
             await ctx.response.send_message(
-                "You're already verified! Congrats 🎉",
-                ephemeral=True
+                "You're already verified! Congrats 🎉", ephemeral=True
             )
             return
 
@@ -198,7 +194,7 @@ async def verify(ctx):
     else:
         await ctx.response.send_message(
             "We weren't able to figure out which server you were trying to verify for. Try `/verify` inside the server's `#verify` channel.",
-            ephemeral=True
+            ephemeral=True,
         )
 
     member = discord.utils.get(guild.members, id=author.id)
@@ -206,7 +202,7 @@ async def verify(ctx):
     if not member:
         await ctx.response.send_message(
             f"It doesn't look like we could verify that you are in the server {guild.name}. Try `/verify` inside the server's `#verify` channel.",
-            ephemeral=True
+            ephemeral=True,
         )
 
     email = "default"
@@ -224,7 +220,7 @@ async def verify(ctx):
         # Fatal error, this should never happen.
         await ctx.followup.send(
             f"Your user ID {member.id} doesn't show up in our records! Please report this error.",
-            ephemeral=True
+            ephemeral=True,
         )
         print(f"{user_to_email=}")
         email = "FAILED TO VERIFY"
@@ -232,9 +228,9 @@ async def verify(ctx):
 
     if "@pitt.edu" not in email:
         return
-    
+
     # Set the user's nickname to their email address on successful verification
-    nickname = email[:email.find("@pitt.edu")]
+    nickname = email[: email.find("@pitt.edu")]
     await member.edit(nick=nickname)
 
     verified = True
@@ -273,7 +269,7 @@ async def verify(ctx):
                         discord.utils.get(guild.roles, name="RA"),
                         reason=f"Member joined with first use of invite code {invite.code}",
                     )
-                    
+
                 await member.add_roles(
                     invite_to_role[invite.code],
                     reason=f"Member joined with invite code {invite.code}",
@@ -334,7 +330,7 @@ async def make_categories(ctx, link: str):
         if "raw" not in link:
             await ctx.send_followup(
                 "Uh oh! You need to send a `raw` hastebin link. Click the 'Just Text' button on hastebin to get one.",
-                ephemeral=True
+                ephemeral=True,
             )
             return
 
@@ -344,7 +340,7 @@ async def make_categories(ctx, link: str):
         except requests.RequestException:
             await ctx.send_followup(
                 "The given link returned a failure status code when queried. Are you sure it's valid?",
-                ephemeral=True
+                ephemeral=True,
             )
             return
 
@@ -356,7 +352,7 @@ async def make_categories(ctx, link: str):
         if not invite_role_dict:
             await ctx.send_followp(
                 "Failed to make invites. Check that a #verify channel exists.",
-                ephemeral=True
+                ephemeral=True,
             )
             return
 
@@ -367,15 +363,22 @@ async def make_categories(ctx, link: str):
         # to our global dict if it was just created.
         for invite in invites_cache[guild.id]:
             if invite.code in invite_role_dict:
+                invite_obj = DbInvite(
+                    code=invite.code,
+                    guild_id=guild.id,
+                    role_id=invite_role_dict[invite.code].id,
+                    uses=0,
+                )
+                session.merge(invite_obj)
                 invite_to_role[invite.code] = invite_role_dict[invite.code]
 
+        session.commit()
         # Upload the file containing the links and ra names as an attachment, so they
         # can be distributed to the RAs to share.
         await ctx.send_followup(file=discord.File("ras-with-links.txt"))
     else:
         await ctx.respond(
-            "Sorry! This command has to be used in a guild context.",
-            ephemeral=True
+            "Sorry! This command has to be used in a guild context.", ephemeral=True
         )
 
 
@@ -402,8 +405,7 @@ async def setup(ctx):
     if exists_guild:
         if exists_guild.is_setup:
             await ctx.response.send_message(
-                "This server has already been set up!",
-                ephemeral=True
+                "This server has already been set up!", ephemeral=True
             )
             return
 
@@ -429,7 +431,7 @@ async def setup(ctx):
         except discord.Forbidden:
             await ctx.followup.send(
                 "Attempted to create an RA role but do not have valid permissions.",
-                ephemeral=True
+                ephemeral=True,
             )
 
     this_guild = DbGuild(
@@ -450,15 +452,10 @@ async def setup(ctx):
     # Create a view that will contain a button which can be used to initialize the verification process
     view = VerifyView(timeout=None)
 
-    await guild_to_landing[ctx.guild.id].send(
-        "Click below to verify.", view=view
-    )
+    await guild_to_landing[ctx.guild.id].send("Click below to verify.", view=view)
 
     # Finished
-    await ctx.respond(
-        "Setup finished.",
-        ephemeral=True
-    )
+    await ctx.respond("Setup finished.", ephemeral=True)
 
 
 @bot.slash_command(
@@ -482,8 +479,7 @@ async def set_email(ctx, user_id, email):
     except:
         user = None
         await ctx.respond(
-            f"User ID did not return a database row: {user_id}",
-            ephemeral=True
+            f"User ID did not return a database row: {user_id}", ephemeral=True
         )
         return
 
@@ -495,14 +491,14 @@ async def set_email(ctx, user_id, email):
     except Exception as ex:
         await ctx.respond(
             "An unexpected database error occurred. Attempting to print traceback.",
-            ephemeral=True
+            ephemeral=True,
         )
         print(ex.with_traceback())
     else:
         await ctx.respond(
-            f"User with ID {user_id} set email to {email}",
-            ephemeral=True
+            f"User with ID {user_id} set email to {email}", ephemeral=True
         )
+
 
 @bot.slash_command(
     description="Reset a user's email to a specific value using their ID"
@@ -515,47 +511,45 @@ async def set_ra(ctx, user_id):
     except:
         user = None
         await ctx.respond(
-            f"User ID did not return a database row: {user_id}",
-            ephemeral=True
+            f"User ID did not return a database row: {user_id}", ephemeral=True
         )
         return
-    
+
     member = discord.utils.get(ctx.guild.members, id=user_id)
     if not member:
         await ctx.respond(
-            f"I couldn't find a member with the id {user_id}.",
-            ephemeral=True
+            f"I couldn't find a member with the id {user_id}.", ephemeral=True
         )
         return
-    
+
     try:
-       await member.add_roles(
+        await member.add_roles(
             discord.utils.get(ctx.guild.roles, name="RA"),
             reason=f"Member was manually assigned RA position",
         )
     except discord.errors.Forbidden:
         await ctx.respond(
             "I don't have permission to modify this user's roles. Ensure that my bot role is higher on the role list than the user's highest role.",
-            ephemeral=True
+            ephemeral=True,
         )
-        
+
     user.is_ra = True
 
     session.merge(user)
-    
+
     try:
         session.commit()
     except Exception as ex:
         await ctx.respond(
             "An unexpected database error occurred. Attempting to print traceback.",
-            ephemeral=True
+            ephemeral=True,
         )
         print(ex.with_traceback())
     else:
         await ctx.respond(
-            f"User with ID {user_id} set to RA in database",
-            ephemeral=True
+            f"User with ID {user_id} set to RA in database", ephemeral=True
         )
+
 
 @bot.slash_command(
     description="Look up a user's email with their Discord ID (this is NOT their username)."
@@ -724,11 +718,35 @@ async def on_ready():
     for guild in bot.guilds:
         try:
             invites_cache[guild.id] = await guild.invites()
+            for invite in invites_cache[guild.id]:
+                try:
+                    invite_obj = (
+                        session.query(DbInvite).filter_by(code=invite.code).one()
+                    )
+                except:
+                    continue
+                else:
+                    if invite_obj:
+                        invite_to_role[invite.code] = discord.utils.get(
+                            guild.roles, id=invite_obj.role_id
+                        )
+            print(f"{invite_to_role=}")
         except discord.errors.Forbidden:
             continue
 
         # A little bit of a hack that prevents us from needing a database for guilds yet
         guild_to_landing[guild.id] = discord.utils.get(guild.channels, name="verify")
+
+        # Create a view that will contain a button which can be used to initialize the verification process
+        view = VerifyView(timeout=None)
+
+        # Finished
+        try:
+            await guild_to_landing[guild.id].send(
+                content="Click the button below to get verified!", view=view
+            )
+        except AttributeError:
+            continue
 
     # print(f"{guild_to_landing=}")
 
