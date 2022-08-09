@@ -97,8 +97,8 @@ class VerifyModal(discord.ui.Modal):
             )
         else:
             await interaction.response.send_message(
-                "Only @pitt.edu emails will be accepted. Please re-verify by typing `/verify` or pressing the button.",
-                ephemeral=True,
+                "Only @pitt.edu emails will be accepted. Please retry by pressing the green button.",
+                ephemeral=True
             )
 
     async def on_timeout(self):
@@ -151,7 +151,7 @@ class UnsetupConfirmation(discord.ui.Modal):
 
 
 class VerifyView(discord.ui.View):
-    @discord.ui.button(label="Verify", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="Verify", style=discord.ButtonStyle.green)
     async def verify_callback(self, button, interaction):
         await verify(interaction)
 
@@ -193,16 +193,16 @@ async def verify(ctx):
         guild = ctx.guild
     else:
         await ctx.response.send_message(
-            "We weren't able to figure out which server you were trying to verify for. Try `/verify` inside the server's `#verify` channel.",
-            ephemeral=True,
+            "We weren't able to figure out which server you were trying to verify for. Press the green 'verify' button inside the server's `#verify` channel.",
+            ephemeral=True
         )
 
     member = discord.utils.get(guild.members, id=author.id)
 
     if not member:
         await ctx.response.send_message(
-            f"It doesn't look like we could verify that you are in the server {guild.name}. Try `/verify` inside the server's `#verify` channel.",
-            ephemeral=True,
+            f"It doesn't look like we could verify that you are in the server {guild.name}. Press the green 'verify' button inside the server's `#verify` channel.",
+            ephemeral=True
         )
 
     email = "default"
@@ -219,8 +219,8 @@ async def verify(ctx):
     else:
         # Fatal error, this should never happen.
         await ctx.followup.send(
-            f"Your user ID {member.id} doesn't show up in our records! Please report this error.",
-            ephemeral=True,
+            f"Your user ID {member.id} doesn't show up in our records! Please report this error to your RA with Error #404",
+            ephemeral=True
         )
         print(f"{user_to_email=}")
         email = "FAILED TO VERIFY"
@@ -274,6 +274,11 @@ async def verify(ctx):
                     invite_to_role[invite.code],
                     reason=f"Member joined with invite code {invite.code}",
                 )
+
+                await member.add_roles(
+                        discord.utils.get(guild.roles, name="resident"),
+                        reason=f"Member joined with {invite.code} after RA already set.",
+                    )
 
                 # Take user's ability to message verification channel away.
                 await guild_to_landing[guild.id].set_permissions(
@@ -758,6 +763,7 @@ if DEBUG:
 {VERSION=}
 {DATABASE_PATH=}
 ---------------------------------------
+Hello :)
 """
     )
 

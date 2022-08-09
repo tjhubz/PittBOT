@@ -98,7 +98,7 @@ async def make_categories(
 
         # Create the text and voice channels
         text_channel = await category.create_text_channel("chat")
-        await category.create_voice_channel("Voice")
+        await category.create_voice_channel("voice")
 
         # Generate an invite.
         if landing_channel:
