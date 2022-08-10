@@ -14,10 +14,10 @@ bot = discord.Bot(intents=discord.Intents.all())
 
 # ------------------------------- INITIALIZATION -------------------------------
 
-TOKEN = "default"  # In a production environment, replace this with the real token
+TOKEN = os.getenv("PITTBOT_TOKEN")
 DEBUG = False
-VERSION = "#.#.#"
-DATABASE_PATH = None
+VERSION = "0.1.0"
+DATABASE_PATH = "dbs/main.db"
 HUB_SERVER_ID = 996607138803748954
 LONG_DELETE_TIME = 60.0
 SHORT_DELETE_TIME = 15.0
@@ -39,7 +39,7 @@ with open("config.json", "r") as config:
             DEBUG = True
             TOKEN = os.getenv("PITTBOT_TOKEN")
         case "production":
-            DEBUG = False
+            DEBUG = True
 
     # Version, so that it only has to be updated in one place.
     VERSION = data["version"]
