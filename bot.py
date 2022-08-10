@@ -371,8 +371,7 @@ async def make_categories(ctx, link: str):
                 invite_obj = DbInvite(
                     code=invite.code,
                     guild_id=guild.id,
-                    role_id=invite_role_dict[invite.code].id,
-                    uses=0,
+                    role_id=invite_role_dict[invite.code].id
                 )
                 session.merge(invite_obj)
                 invite_to_role[invite.code] = invite_role_dict[invite.code]
