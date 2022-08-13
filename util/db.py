@@ -94,6 +94,5 @@ class DbInvite(Base):
     code: {self.code}
     guild_id: {self.guild_id}
     role_id: {self.role_id}
-    uses: {self.uses}
 }}
 """
