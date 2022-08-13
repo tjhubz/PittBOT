@@ -263,20 +263,21 @@ async def verify(ctx):
     
     potential_invites = []
 
-    for invite in old_invites:
+    for possible_invite in old_invites:
         Log.info(f"Checking {invite.code}")
         # O(n²), would love to make this faster
         if (
-            invite.uses
-            < util.invites.get_invite_from_code(invites_now, invite.code).uses
+            possible_invite.uses
+            < util.invites.get_invite_from_code(invites_now, possible_invite.code).uses
         ):
             
             # This is POTENTIALLY the right code
+            invite = possible_invite # If all else fails, grab the first one, which is usually right
 
             # Who joined and with what link
-            Log.info(f"Potentially invite Code: {invite.code}")
+            Log.info(f"Potentially invite Code: {possible_invite.code}")
 
-            potential_invites.append(invite)
+            potential_invites.append(possible_invite)
 
     num_overlap = len(potential_invites)
     
@@ -370,7 +371,9 @@ async def verify(ctx):
         
     else:
         # Error
-        Log.error(f"No valid invite link was found when user {member.name} with ID {member.id} joined. This is operation-fatal. Aborting.")
+        Log.error(
+            f"No valid invite link was found when user {member.name} with ID {member.id} joined. This is potentially operation-fatal. Defaulting to code '{invite.code}'."
+        )
         Log.error(f"{num_overlap=}")
         Log.error(f"{potential_invites=}")
         # Abort
