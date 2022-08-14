@@ -107,20 +107,18 @@ class VerifyModal(discord.ui.Modal):
 
 
 class ManualRoleSelectModal(discord.ui.Modal):
-    def __init__(self, choice_strings=None, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        choices = []
-        for choice in choice_strings:
-            choices.append(discord.SelectOption(label=choice, value=choice))
-
-        self.return_role = None
-        self.add_item(
-            discord.ui.Select(placeholder="Select a community", options=choices)
-        )
+        self.return_code = None
+        self.add_item(discord.ui.InputText(label="Invite Link",placeholder="Please paste the full invite link you were sent."))
 
     async def callback(self, interaction: discord.Interaction):
-        self.return_role = self.children[0].value
+        whole_code = self.children[0].value
+        if "https://discord.gg/" in whole_code:
+            self.return_code = whole_code[19:]
+        elif "discord.gg/" in whole_code:
+            self.return_code = whole_code[11:]
 
 
 class UnsetupConfirmation(discord.ui.Modal):
@@ -297,7 +295,7 @@ async def verify(ctx):
             )
         else:
             try:
-                inv_object = session.query(DbInvite).filter_by(code=inv.code).one()
+                inv_object = session.query(DbInvite).filter_by(code=invite.code).one()
             except Exception as ex:
                 inv_object = None
 
@@ -305,104 +303,69 @@ async def verify(ctx):
                 assigned_role = discord.utils.get(guild.roles, id=inv_object.role_id)
                 if not assigned_role:
                     Log.error(
-                        f"Databased invite '{inv.code}' did not return a role. This is an error."
+                        f"Databased invite '{inv_object.code}' did not return a role. This is an error."
                     )
 
-    elif num_overlap > 1:
-        # Overlapping possibilities, there would have been a data race here before 😔
-
-        # List of options
-        options = []
-        options_to_roles = {}
-
-        # Gather the roles associated with all the overlapping invites
-        for inv in potential_invites:
-            role = invite_to_role[inv.code]
-            if role:
-                Log.ok(
-                    f"Invite link {inv.code} is cached with '{role.name}', adding to modal options for manual select."
-                )
-                options.append(role.name)
-                options_to_roles[role.name] = role
-            else:
-                Log.info(
-                    f"Invite link {inv.code} was not cached, doing lookup in database."
-                )
-                try:
-                    inv_object = session.query(DbInvite).filter_by(code=inv.code).one()
-                except Exception as ex:
-                    inv_object = None
-
-                if inv_object:
-                    Log.ok(f"Invite link {inv.code} was found in the database.")
-                    role = discord.utils.get(guild.roles, id=inv_object.role_id)
-                    if role:
-                        Log.ok(
-                            f"Databased invite '{inv.code}' returned a valid role '{role.name}', adding to modal options for manual select."
-                        )
-                        options.append(role.name)
-                        options_to_roles[role.name] = role
-                    else:
-                        Log.error(
-                            f"Databased invite '{inv.code}' did not return a role. This is an error."
-                        )
-                else:
-                    Log.error(
-                        f"Invite link {inv.code} was neither cached nor found in the database. This code will be ignored. This is an error. "
-                    )
-
-        # Need to now show a modal with all of these options and
-        # then track the correct, selected one to be the role that is actually assigned
+    elif num_overlap > 1:     
+        # Need to now show a modal that will distinguish which invite
+        # was used. This should hopefully be a rare occurrence.
         modal = ManualRoleSelectModal(
-            choice_strings=options, title="Verification", timeout=60
+            title="Paste Your Invite Link", timeout=60
         )
 
         await ctx.response.send_modal(modal)
 
         await modal.wait()
 
-        # Modal should now have a selected value
-        if modal.return_role:
-            Log.ok(f"Role with name '{modal.return_role}' was selected manually.")
-            assigned_role = options_to_roles[modal.return_role]
-
-            # Now need to find invite
-            try:
-                inv_object = (
-                    session.query(DbInvite).filter_by(role_id=assigned_role.id).one()
+        # Modal should now have a code
+        if modal.return_code:
+            role = invite_to_role[modal.return_code]
+            if role:
+                Log.ok(
+                    f"Invite link {modal.return_code} is cached with '{role.name}', assigning this role."
                 )
-            except Exception as ex:
-                inv_object = None
-
-            if inv_object:
-                invite = next(
-                    filter(
-                        lambda inv: inv.code == inv_object.code, invites_cache[guild.id]
-                    ),
-                    None,
+                assigned_role = role
+            else:
+                Log.info(
+                    f"Invite link {modal.return_code} was not cached, doing lookup in database."
                 )
-                if not invite:
-                    # Last ditch effort to get an invite object
-                    current_invites = await guild.invites()
-                    invite = next(
-                        filter(
-                            lambda inv: inv.code == inv_object.code, current_invites
-                        ),
-                        None,
-                    )
+                try:
+                    inv_object = session.query(DbInvite).filter_by(code=modal.return_code).one()
+                except Exception as ex:
+                    inv_object = None
 
-                    if not invite:
-                        Log.error(
-                            f"Could not get a valid invite object out of role '{assigned_role.name}' no matter what we tried. Aborting."
+                if inv_object:
+                    Log.ok(f"Invite link {modal.return_code} was found in the database.")
+                    role = discord.utils.get(guild.roles, id=inv_object.role_id)
+                    if role:
+                        Log.ok(
+                            f"Databased invite '{modal.return_code}' returned a valid role '{role.name}', assigning this role."
                         )
-                        return
+                        assigned_role = role
+                    else:
+                        Log.error(
+                            f"Databased invite '{modal.return_code}' did not return a role. This is an error."
+                        )
+                        await ctx.followup.send(
+                            f"The invite link '{modal.return_code}' couldn't associate you with a specific community, please ask for help in the server!",
+                            ephemeral=True,
+                        )
                 else:
-                    Log.ok(
-                        f"Invite object with code '{invite.code}' fetched correctly."
+                    Log.error(
+                        f"Invite link {modal.return_code} was neither cached nor found in the database. This code will be ignored. This is an error. "
                     )
+                    await ctx.followup.send(
+                        f"The invite link '{modal.return_code}' couldn't associate you with a specific community, please ask for help in the server!",
+                        ephemeral=True,
+                    )
+                    return      
         else:
             Log.error(
-                f"No valid role was selected manually. This is operation-fatal. Aborting."
+                f"No valid invite link was input manually. This is operation-fatal. Aborting."
+            )
+            await ctx.followup.send(
+                f"No valid invite link could associate you with a specific community, please ask for help in the server!",
+                ephemeral=True,
             )
             return
 
@@ -413,6 +376,10 @@ async def verify(ctx):
         )
         Log.error(f"{num_overlap=}")
         Log.error(f"{potential_invites=}")
+        await ctx.followup.send(
+            f"No valid invite link could associate you with a specific community, please ask for help in the server!",
+            ephemeral=True,
+        )
         # Abort
         return
 
@@ -468,6 +435,11 @@ async def verify(ctx):
             is_ra=is_user_ra,
             community="resident",
         )
+    
+    await ctx.followup.send(
+        "Congrats! You should be all set to go!",
+        ephemeral=True,
+    )
 
     # Use merge instead of add to handle if the user is already found in the database.
     # Our use case may dictate that we actually want to cause an error here and
