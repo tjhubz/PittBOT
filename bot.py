@@ -375,8 +375,8 @@ async def verify(ctx):
             )
             Log.error(f"{num_overlap=}")
             Log.error(f"{potential_invites=}")
-            await ctx.followup.send(
-                f"No valid invite link could associate you with a specific community, please ask for help in the server!",
+            await ctx.response.send_message(
+                content=f"No valid invite link could associate you with a specific community, please ask for help in the server!",
             )
             # Abort
             return
