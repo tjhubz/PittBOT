@@ -212,6 +212,7 @@ async def verify(ctx):
             "We weren't able to figure out which server you were trying to verify for. Press the green 'verify' button inside the server's `#verify` channel.",
             ephemeral=True,
         )
+        return
 
     # Get invite snapshot ASAP after guild is determined
     # Invites after user joined
@@ -227,6 +228,7 @@ async def verify(ctx):
             f"It doesn't look like we could verify that you are in the server {guild.name}. Press the green 'verify' button inside the server's `#verify` channel.",
             ephemeral=True,
         )
+        return
 
     email = "default"
 
@@ -239,6 +241,7 @@ async def verify(ctx):
 
     if member.id in user_to_email:
         email = user_to_email[member.id]
+        Log.ok(f"Verified {member.name} with email '{email}'")
     else:
         # Fatal error, this should never happen.
         await ctx.followup.send(
@@ -435,11 +438,6 @@ async def verify(ctx):
             is_ra=is_user_ra,
             community="resident",
         )
-    
-    await ctx.followup.send(
-        "Congrats! You should be all set to go!",
-        ephemeral=True,
-    )
 
     # Use merge instead of add to handle if the user is already found in the database.
     # Our use case may dictate that we actually want to cause an error here and
