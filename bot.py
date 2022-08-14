@@ -99,7 +99,7 @@ class VerifyModal(discord.ui.Modal):
         user_to_email[interaction.user.id] = self.children[0].value
         if "@pitt.edu" in self.children[0].value:
             await interaction.response.send_message(
-                f"Welcome {interaction.user.mention}! Thank you for verifying.",
+                f"Welcome {interaction.user.mention}! Thank you for verifying. Click the three lines in the top left to see the channels!",
                 ephemeral=True,
             )
         else:
@@ -343,14 +343,14 @@ async def verify(ctx):
                         else:
                             Log.error(f"Databased invite '{inv.code}' did not return a role to assign to {member.name}[{member.id}]. This is an error.")
                             await ctx.followup.send(
-                                f"The invite link '{inv.code}' couldn't associate you with a specific community, please ask for help in the server!",
+                                f"The invite link '{inv.code}' couldn't associate you with a specific community, please let your RA know!",
                             )
                     else:
                         Log.error(
                             f"Invite link {inv.code} was neither cached nor found in the database. This code will be ignored. This is an error. "
                         )
                         await ctx.followup.send(
-                            f"The invite link '{inv.code}' couldn't associate you with a specific community, please ask for help in the server!",
+                            f"The invite link '{inv.code}' couldn't associate you with a specific community, please let your RA know!",
                         )
                         return   
 
@@ -360,7 +360,7 @@ async def verify(ctx):
             view = CommunitySelectView(choices=options, opts_to_inv=options_to_inv, timeout=180)
 
             await ctx.response.send_message(
-                content="It looks like there was ambiguity about which community you belong to. Please select your community below!", 
+                content="For security, we must verify which community you belong to. Please select your community below!", 
                 view=view,
                 ephemeral=True
             )
@@ -376,7 +376,7 @@ async def verify(ctx):
             Log.error(f"{num_overlap=}")
             Log.error(f"{potential_invites=}")
             await ctx.response.send_message(
-                content=f"No valid invite link could associate you with a specific community, please ask for help in the server!",
+                content=f"No valid invite link could associate you with a specific community, please let your RA know!",
             )
             # Abort
             return
@@ -414,7 +414,7 @@ async def verify(ctx):
                         f"Databased invite '{invite_code}' did not return a role. This is an error."
                     )
                     await ctx.response.send_message(
-                        f"The invite link '{invite_code}' couldn't associate you with a specific community, please ask for help in the server!",
+                        f"The invite link '{invite_code}' couldn't associate you with a specific community, please let your RA know!",
                     )
                     return
             else:
@@ -422,7 +422,7 @@ async def verify(ctx):
                     f"Invite link {invite_code} was neither cached nor found in the database. This code will be ignored. This is an error. "
                 )
                 await ctx.response.send_message(
-                    f"The invite link '{invite_code}' couldn't associate you with a specific community, please ask for help in the server!",
+                    f"The invite link '{invite_code}' couldn't associate you with a specific community, please let your RA know!",
                 )
                 return
         else:
@@ -489,7 +489,7 @@ async def verify(ctx):
     else:
         Log.error("Bot was not able to determine a role from the invite link used. Aborting.")
         await ctx.response.send_message(
-            f"The invite used couldn't associate you with a specific community, please ask for help in the server!",
+            f"The invite used couldn't associate you with a specific community, please let your RA know!",
         )
         return
 
@@ -902,11 +902,11 @@ async def on_member_join(member: discord.Member):
     user_to_guild[member.id] = member.guild
 
     # Create a dm channel between the bot and the user
-    dm_channel = await member.create_dm()
+    #dm_channel = await member.create_dm()
 
-    await dm_channel.send(
-        content=f"Hey {member.name}! Welcome to {member.guild.name}. Before you get access to your ResLife community, we need you to verify yourself.\n\nTo do so, please see the verification channel in the server or type `/verify` and press enter.",
-    )
+    #await dm_channel.send(
+    #    content=f"Hey {member.name}! Welcome to {member.guild.name}. Before you get access to your ResLife community, we need you to verify yourself.\n\nTo do so, please see the verification channel in the server or type `/verify` and press enter.",
+    #)
 
 
 @bot.event
