@@ -424,12 +424,13 @@ async def verify(ctx):
                     f"No valid invite link was found when user {member.name}[{member.id}] joined. This is operation-abortive."
                 )
                 await logs_channel.send(
-                    content=f"No valid invite link was found when user {member.name}[{member.id}] joined. This will abort verification and require manual override."                    
+                    content=f"**WARNING** No valid invite link was found when user {member.name}[{member.id}] joined. This will abort verification and require manual override."                    
                 )
                 Log.error(f"{num_overlap=}")
                 Log.error(f"{potential_invites=}")
                 await ctx.response.send_message(
                     content=f"No valid invite link could associate you with a specific community, please let your RA know!",
+                    ephemeral=True
                 )
                 # Abort
                 return
@@ -515,6 +516,11 @@ async def verify(ctx):
     # Set the user's nickname to their email address on successful verification
     nickname = email[: email.find("@pitt.edu")]
     await member.edit(nick=nickname)
+    
+    # Send message in logs channel when they successfully verify
+    await logs_channel.send(
+        content=f"Verified {member.name} with email '{email}'"
+        )
 
     # Need to give the member the appropriate role
     is_user_ra = False
@@ -1102,7 +1108,7 @@ async def on_member_join(member: discord.Member):
         Log.error(f"{num_overlap=}")
         Log.error(f"{potential_invites=}")
         await logs_channel.send(
-            content=f"No valid invite link was found when user {member.name}[{member.id}] joined. This is likely to require manual override."
+            content=f"**WARNING** No valid invite link was found when user {member.name}[{member.id}] joined. This is likely to require manual override."
         )
     
     # Update cache
