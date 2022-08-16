@@ -8,6 +8,7 @@ import sqlalchemy
 import requests
 from sqlalchemy.orm import sessionmaker
 import util.invites
+from util.log import Log
 from util.db import DbGuild, DbInvite, DbUser, Base
 from urllib.request import urlopen
 
@@ -22,6 +23,7 @@ VERSION = "0.1.0"
 DATABASE_PATH = "dbs/main.db"
 HUB_SERVER_ID = 996607138803748954
 BOT_COMMANDS_ID = 1006618232129585216
+ERRORS_CHANNEL_ID = 1008400699689799712
 LONG_DELETE_TIME = 60.0
 SHORT_DELETE_TIME = 15.0
 
@@ -82,6 +84,15 @@ user_to_guild = {}
 # Cache of user IDs to their pitt email addresses
 user_to_email = {}
 
+# Cache of user IDs to overriden invite codes
+# used to skip checks if verify is called by the dropdown view in the 
+# case of a possible race condition
+override_user_to_code = {}
+
+# Non-override cache of users to invites built when a member
+# joins
+user_to_invite = {}
+
 # ------------------------------- CLASSES -------------------------------
 
 
@@ -95,20 +106,61 @@ class VerifyModal(Modal):
         user_to_email[interaction.user.id] = self.children[0].value
         if "@pitt.edu" in self.children[0].value:
             await interaction.response.send_message(
-                f"Welcome {interaction.user.mention}! Thank you for verifying.",
+                f"Welcome {interaction.user.mention}! Thank you for verifying. Click the three lines in the top left to see the channels!",
                 ephemeral=True,
             )
         else:
             await interaction.response.send_message(
                 "Only @pitt.edu emails will be accepted. Please retry by pressing the green button.",
-                ephemeral=True
+                ephemeral=True,
             )
 
     async def on_timeout(self):
         self.stop()
 
 
-class UnsetupConfirmation(Modal):
+class ManualRoleSelectModal(discord.ui.Modal):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.return_code = None
+        self.add_item(discord.ui.InputText(label="Invite Link",placeholder="Please paste the full invite link you were sent."))
+
+    async def callback(self, interaction: discord.Interaction):
+        whole_code = self.children[0].value
+        if "https://discord.gg/" in whole_code:
+            self.return_code = whole_code[19:]
+        elif "discord.gg/" in whole_code:
+            self.return_code = whole_code[11:]
+
+class CommunitySelectDropdown(discord.ui.Select):
+    def __init__(self, choices=None, opts_to_inv=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        self.opts_to_inv = opts_to_inv
+        self.placeholder = "Choose your community"
+        self.min_values = 1
+        self.max_values = 1
+        self.options = []
+        for choice in choices:
+            self.add_option(label=choice)
+        
+    async def callback(self, interaction: discord.Interaction):
+        # await interaction.response.send_message(f"Awesome! I see you picked community {self.values[0]}!", ephemeral=True)
+        override_user_to_code[interaction.user.id] = self.opts_to_inv[self.values[0]]
+        user_to_invite[interaction.user.id] = self.opts_to_inv[self.values[0]]
+        Log.ok(f"{override_user_to_code=}")
+        await verify(interaction)
+
+class CommunitySelectView(discord.ui.View):
+    def __init__(self, choices=None, opts_to_inv=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.opts = choices
+        select_menu = CommunitySelectDropdown(choices=self.opts, opts_to_inv=opts_to_inv)
+        self.add_item(select_menu)
+
+
+class UnsetupConfirmation(discord.ui.Modal):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.add_item(InputText(label="Type Yes to Confirm"))
@@ -208,17 +260,246 @@ async def verify(ctx):
     else:
         await ctx.response.send_message(
             "We weren't able to figure out which server you were trying to verify for. Press the green 'verify' button inside the server's `#verify` channel.",
-            ephemeral=True
+            ephemeral=True,
         )
+        return
 
+    # Get invite snapshot ASAP after guild is determined
+    # Invites after user joined.
+    # Notice that these snapshots will only be used in the
+    # event that assigning an invite on member join fails, which should be EXCEEDINGLY rare.
+    invites_now = await guild.invites()
+
+    # Invites before user joined
+    old_invites = invites_cache[guild.id]
+    
     member = discord.utils.get(guild.members, id=author.id)
-
+    
+    # Get logs channel for errors
+    logs_channel = discord.utils.get(guild.channels, name="logs")
+    
     if not member:
         await ctx.response.send_message(
             f"It doesn't look like we could verify that you are in the server {guild.name}. Press the green 'verify' button inside the server's `#verify` channel.",
-            ephemeral=True
         )
+        return
 
+    verified = False
+    
+    assigned_role = None
+    
+    if member.id in user_to_invite:
+        invite = user_to_invite[member.id]
+        if invite_to_role[invite.code]:
+            assigned_role = invite_to_role[invite.code]
+            Log.ok(
+                f"Invite link {invite.code} is cached with '{assigned_role.name}', assigning this role."
+            )
+        else:
+            try:
+                inv_object = session.query(DbInvite).filter_by(code=invite.code).one()
+            except Exception as ex:
+                inv_object = None
+
+            if inv_object:
+                assigned_role = discord.utils.get(guild.roles, id=inv_object.role_id)
+                if not assigned_role:
+                    await ctx.response.send_message("We couldn't find a role to give you, ask your RA for help!")
+                    Log.error(
+                        f"Databased invite '{inv_object.code}' did not return a role to assign to {member.name}[{member.id}]. This is an error."
+                    )
+                    await logs_channel.send(
+                        content=f"Databased invite '{inv_object.code}' did not return a role to assign to {member.name}[{member.id}]. This is an error."
+                    )
+                    # Abort
+                    return
+    else: 
+
+        # This should almost NEVER run
+        # Such an insane cascade of problems has to occur for
+        # this specific block of code to run, and it should be
+        # optimally removed eventually.
+        # For now, though, what this bot has taught me is that 
+        # what can go wrong will go wrong.
+
+        potential_invites = []
+
+        for possible_invite in old_invites:
+            Log.info(f"Checking {possible_invite.code}")
+            # O(n²), would love to make this faster
+            if (
+                possible_invite.uses
+                < util.invites.get_invite_from_code(invites_now, possible_invite.code).uses
+            ):
+
+                # This is POTENTIALLY the right code
+                invite = possible_invite  # If all else fails, grab the first one, which is usually right
+
+                # Who joined and with what link
+                Log.info(f"Potentially invite Code: {possible_invite.code}")
+
+                potential_invites.append(possible_invite)
+
+        num_overlap = len(potential_invites)
+
+        Log.info(f"{potential_invites=}")
+
+        assigned_role = None
+        
+        if member.id not in override_user_to_code:
+            
+            if num_overlap == 1:
+                invite = potential_invites[0]
+                if invite_to_role[invite.code]:
+                    assigned_role = invite_to_role[invite.code]
+                    Log.ok(
+                        f"Invite link {invite.code} is cached with '{assigned_role.name}', assigning this role."
+                    )
+                else:
+                    try:
+                        inv_object = session.query(DbInvite).filter_by(code=invite.code).one()
+                    except Exception as ex:
+                        inv_object = None
+
+                    if inv_object:
+                        assigned_role = discord.utils.get(guild.roles, id=inv_object.role_id)
+                        if not assigned_role:
+                            await ctx.response.send_message("We couldn't find a role to give you, please let your RA know!")
+                            Log.error(
+                                f"Databased invite '{inv_object.code}' did not return a role to assign to {member.name}[{member.id}]. This is an error."
+                            )
+                            await logs_channel.send(
+                                content=f"Databased invite '{inv_object.code}' did not return a role to assign to {member.name}[{member.id}]. This is an error."
+                            )
+                            # Abort
+                            return
+
+            elif num_overlap > 1:     
+                # Code for potential overlap
+                options = []
+                options_to_inv = {}
+
+                # Build options for dropdown
+                for inv in potential_invites:
+                    role = invite_to_role[inv.code]
+                    if role:
+                        Log.ok(f"Invite link {inv.code} is cached with '{role.name}', adding to modal options for manual select.")
+                        options.append(role.name)
+                        options_to_inv[role.name] = inv
+                    else: 
+                        try:
+                            inv_object = session.query(DbInvite).filter_by(code=inv.code).one()
+                        except Exception as ex:
+                            inv_object = None
+                        
+                        if inv_object:
+                            Log.ok(f"Invite link {inv.code} was found in the database.")
+                            role = discord.utils.get(guild.roles, id=inv_object.role_id)
+                            if role:
+                                Log.ok(f"Databased invite '{inv.code}' returned a valid role '{role.name}', assigning this role.")
+                                options.append(role.name)
+                                options_to_inv[role.name] = inv
+                            else:
+                                Log.error(f"Databased invite '{inv.code}' did not return a role to assign to {member.name}[{member.id}]. This is an error.")
+                                await ctx.followup.send(
+                                    f"The invite link '{inv.code}' couldn't associate you with a specific community, please let your RA know!",
+                                )
+                                await logs_channel.send(
+                                    content=f"Databased invite '{inv.code}' did not return a role to assign to {member.name}[{member.id}]. This is an error."
+                                )
+                        else:
+                            Log.error(
+                                f"Invite link {inv.code} was neither cached nor found in the database. This code will be ignored. This is an error. "
+                            )
+                            await ctx.followup.send(
+                                f"The invite link '{inv.code}' couldn't associate you with a specific community, please let your RA know!",
+                            )
+                            await logs_channel.send(
+                                content=f"The invite link '{inv.code}' couldn't associate {member.name}[{member.id}] with a specific community. This will probably need manual override.",
+                            ) 
+
+                # Send view with options and bail out of function
+                # It will be re-initiated by the dropdown menu
+                Log.info(f"{options=}")
+                view = CommunitySelectView(choices=options, opts_to_inv=options_to_inv, timeout=180)
+
+                await ctx.response.send_message(
+                    content="For security, we must verify which community you belong to. Please select your community below!", 
+                    view=view,
+                    ephemeral=True
+                )
+                
+                # Bail
+                return
+
+            else:
+                # Error
+                Log.error(
+                    f"No valid invite link was found when user {member.name}[{member.id}] joined. This is operation-abortive."
+                )
+                await logs_channel.send(
+                    content=f"No valid invite link was found when user {member.name}[{member.id}] joined. This will abort verification and require manual override."                    
+                )
+                Log.error(f"{num_overlap=}")
+                Log.error(f"{potential_invites=}")
+                await ctx.response.send_message(
+                    content=f"No valid invite link could associate you with a specific community, please let your RA know!",
+                )
+                # Abort
+                return
+            
+        else:
+            # Member has been overriden
+            invite_code = override_user_to_code[member.id].code
+            Log.info(f"Got {invite_code=}")
+            # This literally MUST be cached or something is SIGNIFICANTLY wrong
+            invite = next(filter(lambda inv: inv.code == invite_code, old_invites), None)
+            Log.info(f"Got {old_invites=}")
+            if not invite:
+                await ctx.response.send_message(
+                    "We couldn't find a valid invite code associated with the community you selected.",
+                )
+                Log.error(f"Failed to associate invite to role for user {member.name}[{member.id}], aborting and dumping: {override_user_to_code=}")
+                return
+            role = invite_to_role[invite_code]
+            if not role:
+                try:
+                    inv_object = session.query(DbInvite).filter_by(code=invite_code).one()
+                except Exception as ex:
+                    inv_object = None
+
+                if inv_object:
+                    Log.ok(f"Invite link {invite_code} was found in the database.")
+                    role = discord.utils.get(guild.roles, id=inv_object.role_id)
+                    if role:
+                        Log.ok(
+                            f"Databased invite '{invite_code}' returned a valid role '{role.name}', assigning this role."
+                        )
+                        assigned_role = role
+                    else:
+                        Log.error(
+                            f"Databased invite '{invite_code}' did not return a role. This is an error."
+                        )
+                        await ctx.response.send_message(
+                            f"The invite link '{invite_code}' couldn't associate you with a specific community, please let your RA know!",
+                        )
+                        return
+                else:
+                    Log.error(
+                        f"Invite link {invite_code} was neither cached nor found in the database. This code will be ignored. This is an error. "
+                    )
+                    await ctx.response.send_message(
+                        f"The invite link '{invite_code}' couldn't associate you with a specific community, please let your RA know!",
+                    )
+                    return
+            else:
+                assigned_role = role
+                Log.ok(
+                    f"Overriden invite code '{invite_code}' correctly associated with '{role.name}'"
+                )
+    
+    # Begin ACTUAL VERIFICATION
+            
     email = "default"
 
     modal = VerifyModal(title="Verification", timeout=60)
@@ -230,15 +511,17 @@ async def verify(ctx):
 
     if member.id in user_to_email:
         email = user_to_email[member.id]
+        Log.ok(f"Verified {member.name} with email '{email}'")
+        verified = True
     else:
         # Fatal error, this should never happen.
-        await ctx.followup.send(
+        await ctx.response.send_message(
             f"Your user ID {member.id} doesn't show up in our records! Please report this error to your RA with Error #404",
-            ephemeral=True
         )
-        print(f"{user_to_email=}")
+        Log.error(f"Failed to verify user {member.name}, dumping: {user_to_email=}")
         email = "FAILED TO VERIFY"
         verified = False
+        return
 
     if "@pitt.edu" not in email:
         return
@@ -247,87 +530,80 @@ async def verify(ctx):
     nickname = email[: email.find("@pitt.edu")]
     await member.edit(nick=nickname)
 
-    verified = True
+    # Need to give the member the appropriate role
+    is_user_ra = False
+    # If the invite code's use was previously zero, then we should actually give the user
+    # the RA role, in addition to the RA X's community role.
+    if invite.uses == 0:
+        # First use of invite
+        is_user_ra = True
+        await member.add_roles(
+            discord.utils.get(guild.roles, name="RA"),
+            reason=f"Member joined with first use of invite code {invite.code}",
+        )
+    else:
+        # Otherwise resident
+        await member.add_roles(
+            discord.utils.get(guild.roles, name="resident"),
+            reason=f"Member joined with {invite.code} after RA already set.",
+        )
 
-    # This is a kind of janky method taken from this medium article:
-    # https://medium.com/@tonite/finding-the-invite-code-a-user-used-to-join-your-discord-server-using-discord-py-5e3734b8f21f
-    # Unfortunately, I cannot find a native API way to get the invite link used by a user. If you find one, please make a PR 😅
+    if assigned_role:
+        await member.add_roles(
+            assigned_role,
+            reason=f"Member joined with invite code {invite.code}",
+        )
+    else:
+        Log.error("Bot was not able to determine a role from the invite link used. Aborting.")
+        await ctx.response.send_message(
+            "The invite used couldn't associate you with a specific community, please let your RA know!",
+        )
+        return
 
-    # Invites before user joined
-    old_invites = invites_cache[guild.id]
+    # Take user's ability to message verification channel away.
+    await guild_to_landing[guild.id].set_permissions(
+        invite_to_role[invite.code],
+        read_messages=False,
+        send_messages=False,
+    )
 
-    # Invites after user joined
-    invites_now = await guild.invites()
+    # We should add user to database here
+    if assigned_role:
+        new_member = DbUser(
+            ID=member.id,
+            username=member.name,
+            email=email,
+            verified=verified,
+            is_ra=is_user_ra,
+            community=assigned_role.name,
+        )
+    else:
+        new_member = DbUser(
+            ID=member.id,
+            username=member.name,
+            email=email,
+            verified=verified,
+            is_ra=is_user_ra,
+            community="resident",
+        )
 
-    for invite in old_invites:
-        print(f"Checking {invite.code}")
-        # O(n²), would love to make this faster
-        if (
-            invite.uses
-            < util.invites.get_invite_from_code(invites_now, invite.code).uses
-        ):
+    # Use merge instead of add to handle if the user is already found in the database.
+    # Our use case may dictate that we actually want to cause an error here and
+    # disallow users to verify a second time, but this poses a couple challenges
+    # including if a user leaves the server and is re-invited.
+    session.merge(new_member)
 
-            # Who joined and with what link
-            print(f"Member {member.name} Joined")
-            print(f"Invite Code: {invite.code}")
+    # Update cache
+    invites_cache[guild.id] = invites_now
 
-            # Need to give the member the appropriate role
-            if invite.code in invite_to_role:
-                is_user_ra = False
-                # If the invite code's use was previously zero, then we should actually give the user
-                # the RA role, in addition to the RA X's community role.
-                if invite.uses == 0:
-                    # First use of invite
-                    is_user_ra = True
-                    await member.add_roles(
-                        discord.utils.get(guild.roles, name="RA"),
-                        reason=f"Member joined with first use of invite code {invite.code}",
-                    )
-
-                await member.add_roles(
-                    invite_to_role[invite.code],
-                    reason=f"Member joined with invite code {invite.code}",
-                )
-
-                await member.add_roles(
-                        discord.utils.get(guild.roles, name="resident"),
-                        reason=f"Member joined with {invite.code} after RA already set.",
-                    )
-
-                # Take user's ability to message verification channel away.
-                await guild_to_landing[guild.id].set_permissions(
-                    invite_to_role[invite.code],
-                    read_messages=False,
-                    send_messages=False,
-                )
-
-                # We should add user to database here
-                new_member = DbUser(
-                    ID=member.id,
-                    username=member.name,
-                    email=email,
-                    verified=verified,
-                    is_ra=is_user_ra,
-                    community=invite_to_role[invite.code].name,
-                )
-
-                # Use merge instead of add to handle if the user is already found in the database.
-                # Our use case may dictate that we actually want to cause an error here and
-                # disallow users to verify a second time, but this poses a couple challenges
-                # including if a user leaves the server and is re-invited.
-                session.merge(new_member)
-            else:
-                # This is a pretty fatal error, and really shouldn't occur if everything has gone right up to here.
-                print(f"{invite.code} not in invite_to_role:\n{invite_to_role=}")
-
-            # Update cache
-            invites_cache[guild.id] = invites_now
-
-            # Short circuit out
-            del user_to_email[member.id]
-            del user_to_guild[member.id]
-            session.commit()
-            return
+    # Unset caches used for verification
+    del user_to_email[member.id]
+    del user_to_guild[member.id]
+    if member.id in override_user_to_code:
+        del override_user_to_code[member.id]
+    if member.id in user_to_invite:
+        del user_to_invite[member.id]
+    session.commit()
 
 
 @bot.slash_command(
@@ -385,7 +661,7 @@ async def make_categories(ctx, link: str):
                 invite_obj = DbInvite(
                     code=invite.code,
                     guild_id=guild.id,
-                    role_id=invite_role_dict[invite.code].id
+                    role_id=invite_role_dict[invite.code].id,
                 )
                 session.merge(invite_obj)
                 invite_to_role[invite.code] = invite_role_dict[invite.code]
@@ -431,7 +707,7 @@ async def setup(ctx):
     guild_to_landing[ctx.guild.id] = discord.utils.get(
         ctx.guild.channels, name="verify"
     )
-    # print(f"{guild_to_landing=}")
+    # Log.info(f"{guild_to_landing=}")
 
     # Cache the invites for the guild as they currently stand (none should be present)
     invites_cache[ctx.guild.id] = await ctx.guild.invites()
@@ -464,7 +740,9 @@ async def setup(ctx):
     try:
         session.commit()
     except IntegrityError as int_exception:
-        print("Attempting to merge an already existent guild into the database failed:")
+        Log.warning(
+            "Attempting to merge an already existent guild into the database failed:"
+        )
         print(int_exception.with_traceback())
 
     # Create a view that will contain a button which can be used to initialize the verification process
@@ -517,6 +795,51 @@ async def set_email(ctx, user_id, email):
             f"User with ID {user_id} set email to {email}", ephemeral=True
         )
 
+
+@bot.slash_command(
+    description="Manually set up and verify a user"
+)
+@discord.guild_only()
+@discord.ext.commands.has_permissions(administrator=True)
+async def set_user(ctx, user_id, role_id, email, is_ra=False):
+    role = ctx.guild.get_role(role_id)
+    if not role:
+        await ctx.response.send_message(
+            content=f"Couldn't find a role with ID '{role_id}'",
+            ephemeral=True
+        )
+        return
+    member = ctx.guild.get_member(user_id)
+    if not member:
+        await ctx.response.send_message(
+            content=f"Couldn't find a member with ID '{user_id}' in this guild.",
+            ephemeral=True
+        )
+        return
+    
+    try:
+        user = session.query(DbUser).filter_by(ID=user_id).one()
+    except:
+        user = DbUser(
+            ID=user_id,
+            username=member.name,
+            email=email,
+            verified=True,
+            is_ra=is_ra,
+            community=role.name
+        )
+        session.merge(user)
+        session.commit()
+        return
+    
+    user.email = email
+    user.username = member.name
+    user.verified = True
+    user.is_ra = is_ra
+    user.community = role.name
+    
+    session.merge(user)
+    session.commit()
 
 @bot.slash_command(
     description="Reset a user's email to a specific value using their ID"
@@ -594,6 +917,26 @@ async def lookup(ctx, user_id):
         embed.add_field(name="User ID", value=f"{user_id}", inline=False)
 
     await ctx.respond(embed=embed)
+
+
+@bot.slash_command(
+    description="Manually drop a user from the database with their user ID."
+)
+@discord.ext.commands.has_permissions(administrator=True)
+async def reset_user(ctx, user_id):
+    try:
+        user = session.query(DbUser).filter_by(ID=user_id).delete()
+    except:
+        user = None
+        await ctx.respond(
+            f"User ID did not return a database row or could not be deleted: {user_id}",
+            ephemeral=True,
+        )
+        return
+
+    session.commit()
+
+    await ctx.respond(f"Dropped row for user with ID: {user_id}", ephemeral=True)
 
 
 # ------------------------------- EVENT HANDLERS -------------------------------
@@ -734,20 +1077,121 @@ async def on_member_join(member: discord.Member):
     # Need to figure out what invite the user joined with
     # in order to assign the correct roles.
 
-    print(f"Member join event fired with {member.display_name}")
+    Log.info(f"Member join event fired with {member.display_name}")
 
     # I'm thinking we should initiate verification here instead of
     # adding the roles, then the verify command does all of this code.
-
+    
     # User is verifying for the guild they just joined
     user_to_guild[member.id] = member.guild
+    
+    # Get logs channel for errors
+    logs_channel = discord.utils.get(member.guild.channels, name="logs")
+    
+    # Get invite snapshot ASAP after guild is determined
+    # Invites after user joined
+    invites_now = await member.guild.invites()
 
-    # Create a dm channel between the bot and the user
+    # Invites before user joined
+    old_invites = invites_cache[member.guild.id]
+    
+    # Will need to DM member at some point
     dm_channel = await member.create_dm()
 
-    await dm_channel.send(
-        content=f"Hey {member.name}! Welcome to {member.guild.name}. Before you get access to your ResLife community, we need you to verify yourself.\n\nTo do so, please see the verification channel in the server or type `/verify` and press enter.",
-    )
+    # This is a kind of janky method taken from this medium article:
+    # https://medium.com/@tonite/finding-the-invite-code-a-user-used-to-join-your-discord-server-using-discord-py-5e3734b8f21f
+    # Unfortunately, I cannot find a native API way to get the invite link used by a user. If you find one, please make a PR 😅
+
+    # Check for the potential invites 
+    potential_invites = []
+
+    for possible_invite in old_invites:
+        Log.info(f"Checking {possible_invite.code}")
+        # O(n²)
+        if (
+            possible_invite.uses
+            < util.invites.get_invite_from_code(invites_now, possible_invite.code).uses
+        ):
+
+            # This is POTENTIALLY the right code
+            invite = possible_invite  # If all else fails, grab the first one, which is usually right
+
+            # Who joined and with what link
+            Log.info(f"Potentially invite Code: {possible_invite.code}")
+
+            potential_invites.append(possible_invite)
+
+    num_overlap = len(potential_invites)
+
+    Log.info(f"{potential_invites=}")
+    
+    if num_overlap == 1:
+        invite = potential_invites[0]
+        user_to_invite[member.id] = invite
+
+    elif num_overlap > 1:     
+        # Code for potential overlap
+        options = []
+        options_to_inv = {}
+
+        # Build options for dropdown
+        for inv in potential_invites:
+            role = invite_to_role[inv.code]
+            if role:
+                Log.ok(f"Invite link {inv.code} is cached with '{role.name}', adding to modal options for manual select.")
+                options.append(role.name)
+                options_to_inv[role.name] = inv
+            else: 
+                try:
+                    inv_object = session.query(DbInvite).filter_by(code=inv.code).one()
+                except Exception as ex:
+                    inv_object = None
+                
+                if inv_object:
+                    Log.ok(f"Invite link {inv.code} was found in the database.")
+                    role = discord.utils.get(member.guild.roles, id=inv_object.role_id)
+                    if role:
+                        Log.ok(f"Databased invite '{inv.code}' returned a valid role '{role.name}', assigning this role.")
+                        options.append(role.name)
+                        options_to_inv[role.name] = inv
+                    else:
+                        Log.error(f"Databased invite '{inv.code}' did not return a role to assign to {member.name}[{member.id}]. This is an error.")
+                        await logs_channel.send(content=f"Databased invite '{inv.code}' did not return a role to assign to {member.name}[{member.id}]. This is an error.")
+                else:
+                    Log.error(
+                        f"Invite link {inv.code} was neither cached nor found in the database. This code will be ignored. This is an error."
+                    )
+                    await logs_channel.send(
+                        content=f"Invite link {inv.code} was neither cached nor found in the database. This code will be ignored. This is an error."
+                    )
+
+        # Send view with options which will forcibly initiate verification
+        Log.info(f"{options=}")
+        view = CommunitySelectView(choices=options, opts_to_inv=options_to_inv, timeout=180)
+        
+        await dm_channel.send(
+            content="For security, we must verify which community you belong to. Please select your community below!", 
+            view=view,
+            delete_after=60.0
+        )
+        await logs_channel.send(
+            content=f"User {member.name}[{member.id}] invite code was ambiguous, sending them manual selection menu...", 
+        )
+
+    else:
+        # Error
+        Log.error(
+            f"No valid invite link was found when user {member.name}[{member.id}] joined."
+        )
+        Log.error(f"{num_overlap=}")
+        Log.error(f"{potential_invites=}")
+        await logs_channel.send(
+            content=f"No valid invite link was found when user {member.name}[{member.id}] joined. This is likely to require manual override."
+        )
+    
+    # Update cache
+    invites_cache[member.guild.id] = invites_now
+    Log.ok(f"User {member.name}[{member.id}] is associated with invite {user_to_invite[member.id].code}")
 
 
 @bot.event
@@ -756,7 +1200,7 @@ async def on_guild_join(guild):
 
     # Track the landing channel (verify) of the server
     guild_to_landing[guild.id] = discord.utils.get(guild.channels, name="verify")
-    # print(f"{guild_to_landing=}")
+    # Log.info(f"{guild_to_landing=}")
 
     # Cache the invites for the guild as they currently stand (none should be present)
     invites_cache[guild.id] = await guild.invites()
@@ -772,7 +1216,7 @@ async def on_guild_join(guild):
                 color=discord.Colour.red(),
             )
         except discord.Forbidden:
-            print(
+            Log.warning(
                 "Attempted to create an RA role on join but do not have valid permissions."
             )
 
@@ -788,7 +1232,9 @@ async def on_guild_join(guild):
     try:
         session.commit()
     except IntegrityError as int_exception:
-        print("Attempting to merge an already existent guild into the database failed:")
+        Log.warning(
+            "Attempting to merge an already existent guild into the database failed:"
+        )
         print(int_exception.with_traceback())
 
     # Create a view that will contain a button which can be used to initialize the verification process
@@ -818,7 +1264,7 @@ async def on_ready():
                         invite_to_role[invite.code] = discord.utils.get(
                             guild.roles, id=invite_obj.role_id
                         )
-            print(f"{invite_to_role=}")
+            Log.info(f"{invite_to_role=}")
         except discord.errors.Forbidden:
             continue
 
@@ -836,7 +1282,7 @@ async def on_ready():
         except AttributeError:
             continue
 
-    # print(f"{guild_to_landing=}")
+    # Log.info(f"{guild_to_landing=}")
 
 
 if DEBUG:
