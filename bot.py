@@ -106,7 +106,7 @@ class VerifyModal(Modal):
         user_to_email[interaction.user.id] = self.children[0].value
         if "@pitt.edu" in self.children[0].value:
             await interaction.response.send_message(
-                f"Welcome {interaction.user.mention}! Thank you for verifying. Click the three lines in the top left to see the channels!",
+                f"Welcome {interaction.user.mention}! Thank you for verifying. You can now exit this channel. Check out the channels on the left! If you are on mobile, click the three lines in the top left.",
                 ephemeral=True,
             )
         else:
