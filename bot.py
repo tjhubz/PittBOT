@@ -972,25 +972,33 @@ async def on_scheduled_event_create(scheduled_event):
         await interaction.response.send_modal(url_modal)
         await url_modal.wait()
         cover_url = url_modal.url
-        cover_bytes = urlopen(cover_url).read()
-        # Adds the cover photo to the event in the hub server
-        await scheduled_event.edit(cover=cover_bytes)
-        # Iterates through the residence hall servers, skipping the hub server
-        for guild in bot.guilds:
-            if guild.id == HUB_SERVER_ID:
-                continue
-            # Clones the event without a cover photo, then edits the cover photo onto it
-            event_clone = await guild.create_scheduled_event(
-                name=scheduled_event.name, 
-                description=scheduled_event.description, 
-                location=scheduled_event.location, 
-                start_time=scheduled_event.start_time, 
-                end_time=scheduled_event.end_time
+        # Adds the cover photo to the event if the URL is valid (starts with 'http')
+        if (cover_url.lower()).startswith('http'):
+            cover_bytes = urlopen(cover_url).read()
+            # Adds the cover photo to the event in the hub server
+            await scheduled_event.edit(cover=cover_bytes)
+            # Iterates through the residence hall servers, skipping the hub server
+            for guild in bot.guilds:
+                if guild.id == HUB_SERVER_ID:
+                    continue
+                # Clones the event without a cover photo, then edits the cover photo onto it
+                event_clone = await guild.create_scheduled_event(
+                    name=scheduled_event.name, 
+                    description=scheduled_event.description, 
+                    location=scheduled_event.location, 
+                    start_time=scheduled_event.start_time, 
+                    end_time=scheduled_event.end_time
+                )
+                await event_clone.edit(cover=cover_bytes)
+            # Deletes the message with buttons and replaces it with a confirmation message
+            await interaction.delete_original_message()
+            await channel.send(f'Event **{scheduled_event.name}** successfully created **with** cover image.')
+        # Sends an error message and prompts the user to try again if the URL is invalid
+        else:
+            await channel.send(
+                """**Error: Invalid URL.**
+Only direct image links are supported. Try again."""
             )
-            await event_clone.edit(cover=cover_bytes)
-        # Deletes the message with buttons and replaces it with a confirmation message
-        await interaction.delete_original_message()
-        await channel.send(f'Event **{scheduled_event.name}** successfully created **with** cover image.')
     # Executes if the user clicks the 'No' button to skip uploading a cover photo
     async def no_callback(interaction: discord.Interaction):
         await interaction.response.defer()
