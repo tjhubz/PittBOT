@@ -239,6 +239,8 @@ async def verify(ctx):
         author = ctx.author
     except AttributeError:
         author = ctx.user
+        
+    Log.info(f"Starting verify for {author.name}[{author.id}]")
 
     try:
         user = session.query(DbUser).filter_by(ID=author.id).one()
@@ -326,10 +328,15 @@ async def verify(ctx):
 
         for possible_invite in old_invites:
             Log.info(f"Checking {possible_invite.code}")
-            # O(n²), would love to make this faster
+            new_invite = util.invites.get_invite_from_code(invites_now, possible_invite.code)
+            if not new_invite:
+                # The invite is invalid or somehow inaccessible
+                Log.warning(f"Invite code {possible_invite.code} was invalid or inaccessible, it will be skipped.")
+                continue
+            # O(n²)
             if (
                 possible_invite.uses
-                < util.invites.get_invite_from_code(invites_now, possible_invite.code).uses
+                < new_invite.uses
             ):
 
                 # This is POTENTIALLY the right code
@@ -1138,17 +1145,21 @@ async def on_member_join(member: discord.Member):
 
     # This is a kind of janky method taken from this medium article:
     # https://medium.com/@tonite/finding-the-invite-code-a-user-used-to-join-your-discord-server-using-discord-py-5e3734b8f21f
-    # Unfortunately, I cannot find a native API way to get the invite link used by a user. If you find one, please make a PR 😅
 
     # Check for the potential invites 
     potential_invites = []
 
     for possible_invite in old_invites:
         Log.info(f"Checking {possible_invite.code}")
+        new_invite = util.invites.get_invite_from_code(invites_now, possible_invite.code)
+        if not new_invite:
+            # The invite is invalid or somehow inaccessible
+            Log.warning(f"Invite code {possible_invite.code} was invalid or inaccessible, it will be skipped.")
+            continue
         # O(n²)
         if (
             possible_invite.uses
-            < util.invites.get_invite_from_code(invites_now, possible_invite.code).uses
+            < new_invite.uses
         ):
 
             # This is POTENTIALLY the right code
