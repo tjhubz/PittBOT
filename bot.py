@@ -276,7 +276,7 @@ async def verify(ctx):
     
     if member.id in user_to_invite:
         invite = user_to_invite[member.id]
-        if invite_to_role[invite.code]:
+        if invite.code in invite_to_role:
             assigned_role = invite_to_role[invite.code]
             Log.ok(
                 f"Invite link {invite.code} is cached with '{assigned_role.name}', assigning this role."
@@ -336,7 +336,7 @@ async def verify(ctx):
             
             if num_overlap == 1:
                 invite = potential_invites[0]
-                if invite_to_role[invite.code]:
+                if invite.code in invite_to_role:
                     assigned_role = invite_to_role[invite.code]
                     Log.ok(
                         f"Invite link {invite.code} is cached with '{assigned_role.name}', assigning this role."
@@ -367,8 +367,8 @@ async def verify(ctx):
 
                 # Build options for dropdown
                 for inv in potential_invites:
-                    role = invite_to_role[inv.code]
-                    if role:
+                    if inv.code in invite_to_role:
+                        role = invite_to_role[inv.code]
                         Log.ok(f"Invite link {inv.code} is cached with '{role.name}', adding to modal options for manual select.")
                         options.append(role.name)
                         options_to_inv[role.name] = inv
@@ -447,8 +447,13 @@ async def verify(ctx):
                 )
                 Log.error(f"Failed to associate invite to role for user {member.name}[{member.id}], aborting and dumping: {override_user_to_code=}")
                 return
-            role = invite_to_role[invite_code]
-            if not role:
+            if invite_code in invite_to_role:
+                role = invite_to_role[invite_code]
+                assigned_role = role
+                Log.ok(
+                    f"Overriden invite code '{invite_code}' correctly associated with '{role.name}'"
+                )
+            else:
                 try:
                     inv_object = session.query(DbInvite).filter_by(code=invite_code).one()
                 except Exception as ex:
@@ -478,11 +483,6 @@ async def verify(ctx):
                         f"The invite link '{invite_code}' couldn't associate you with a specific community, please let your RA know!",
                     )
                     return
-            else:
-                assigned_role = role
-                Log.ok(
-                    f"Overriden invite code '{invite_code}' correctly associated with '{role.name}'"
-                )
     
     # Begin ACTUAL VERIFICATION
             
@@ -752,17 +752,32 @@ async def unsetup(ctx):
 
 
 @bot.slash_command(
-    description="Reset a user's email to a specific value using their ID"
+    description="Reset a user's email using their ID. set_user is preferred."
 )
 @discord.ext.commands.has_permissions(administrator=True)
 async def set_email(ctx, user_id, email):
     try:
         user = session.query(DbUser).filter_by(ID=user_id).one()
     except:
-        user = None
-        await ctx.respond(
-            f"User ID did not return a database row: {user_id}", ephemeral=True
+        member = ctx.guild.get_member(user_id)
+        if not member:
+            Log.error(f"No member returned for ID {user_id}")
+            await ctx.response.send_message(
+                content=f"Couldn't find a member with ID '{user_id}' in this guild.",
+                ephemeral=True
+            )
+            return
+        
+        user = DbUser(
+            ID=user_id,
+            username=member.name,
+            email=email,
+            verified=True,
+            is_ra=False,
+            community="resident"    # Preferable to use set_user
         )
+        session.merge(user)
+        session.commit()
         return
 
     user.email = email
@@ -788,15 +803,17 @@ async def set_email(ctx, user_id, email):
 @discord.guild_only()
 @discord.ext.commands.has_permissions(administrator=True)
 async def set_user(ctx, user_id, role_id, email, is_ra=False):
-    role = ctx.guild.get_role(role_id)
+    role = discord.utils.get(ctx.guild.roles, id=role_id)
     if not role:
+        Log.error(f"No role returned for ID {role_id}: {role=}")
         await ctx.response.send_message(
-            content=f"Couldn't find a role with ID '{role_id}'",
+            content=f"Couldn't find a role with ID '{role_id}' in this guild.",
             ephemeral=True
         )
         return
-    member = ctx.guild.get_member(user_id)
+    member = discord.utils.get(ctx.guild.members, id=user_id)
     if not member:
+        Log.error(f"No member returned for ID {user_id}")
         await ctx.response.send_message(
             content=f"Couldn't find a member with ID '{user_id}' in this guild.",
             ephemeral=True
@@ -836,10 +853,25 @@ async def set_ra(ctx, user_id):
     try:
         user = session.query(DbUser).filter_by(ID=user_id).one()
     except:
-        user = None
-        await ctx.respond(
-            f"User ID did not return a database row: {user_id}", ephemeral=True
+        member = discord.utils.get(ctx.guild.members, id=user_id)
+        if not member:
+            Log.error(f"No member returned for ID {user_id}")
+            await ctx.response.send_message(
+                content=f"Couldn't find a member with ID '{user_id}' in this guild.",
+                ephemeral=True
+            )
+            return
+        
+        user = DbUser(
+            ID=user_id,
+            username=member.name,
+            email="none given",
+            verified=True,
+            is_ra=False,
+            community="resident"
         )
+        session.merge(user)
+        session.commit()
         return
 
     member = discord.utils.get(ctx.guild.members, id=user_id)
@@ -1052,8 +1084,8 @@ async def on_member_join(member: discord.Member):
 
         # Build options for dropdown
         for inv in potential_invites:
-            role = invite_to_role[inv.code]
-            if role:
+            if inv.code in invite_to_role:
+                role = invite_to_role[inv.code]
                 Log.ok(f"Invite link {inv.code} is cached with '{role.name}', adding to modal options for manual select.")
                 options.append(role.name)
                 options_to_inv[role.name] = inv
