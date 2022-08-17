@@ -1,5 +1,8 @@
+# pylint: disable=missing-class-docstring,missing-function-docstring
+
 import os
 from sqlite3 import IntegrityError
+from urllib.request import urlopen
 import discord
 import discord.ext
 from discord.ui import Button, View, Modal, InputText
@@ -10,7 +13,6 @@ from sqlalchemy.orm import sessionmaker
 import util.invites
 from util.log import Log
 from util.db import DbGuild, DbInvite, DbUser, Base
-from urllib.request import urlopen
 
 
 bot = discord.Bot(intents=discord.Intents.all())
@@ -140,7 +142,7 @@ class ManualRoleSelectModal(discord.ui.Modal):
 
 
 class CommunitySelectDropdown(discord.ui.Select):
-    def __init__(self, choices=None, opts_to_inv=None, *args, **kwargs):
+    def __init__(self, *args, choices=None, opts_to_inv=None, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.opts_to_inv = opts_to_inv
@@ -159,7 +161,7 @@ class CommunitySelectDropdown(discord.ui.Select):
 
 
 class CommunitySelectView(discord.ui.View):
-    def __init__(self, choices=None, opts_to_inv=None, *args, **kwargs):
+    def __init__(self, *args, choices=None, opts_to_inv=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.opts = choices
         select_menu = CommunitySelectDropdown(
@@ -179,7 +181,7 @@ class UnsetupConfirmation(discord.ui.Modal):
                 guild_obj = (
                     session.query(DbGuild).filter_by(ID=interaction.guild.id).one()
                 )
-            except Exception as ex:
+            except Exception:
                 guild_obj = None
 
             if guild_obj:
@@ -253,7 +255,7 @@ async def verify(ctx):
 
     try:
         user = session.query(DbUser).filter_by(ID=author.id).one()
-    except Exception as ex:
+    except Exception:
         user = None
 
     if user:
@@ -309,7 +311,7 @@ async def verify(ctx):
         else:
             try:
                 inv_object = session.query(DbInvite).filter_by(code=invite.code).one()
-            except Exception as ex:
+            except Exception:
                 inv_object = None
 
             if inv_object:
@@ -379,7 +381,7 @@ async def verify(ctx):
                         inv_object = (
                             session.query(DbInvite).filter_by(code=invite.code).one()
                         )
-                    except Exception as ex:
+                    except Exception:
                         inv_object = None
 
                     if inv_object:
@@ -418,7 +420,7 @@ async def verify(ctx):
                             inv_object = (
                                 session.query(DbInvite).filter_by(code=inv.code).one()
                             )
-                        except Exception as ex:
+                        except Exception:
                             inv_object = None
 
                         if inv_object:
@@ -470,15 +472,15 @@ async def verify(ctx):
             else:
                 # Error
                 Log.error(
-                    f"No valid invite link was found when user {member.name}[{member.id}] joined. This is operation-abortive."
+                    f"No valid invite link was found when user {member.name}[{member.id}] verified. This is operation-abortive."
                 )
                 await logs_channel.send(
-                    content=f"**WARNING** No valid invite link was found when user {member.name}[{member.id}] joined. This will abort verification and require manual override."
+                    content=f"**WARNING** No valid invite link was found when user {member.name}[{member.id}] verified. This will abort verification and require manual override."
                 )
                 Log.error(f"{num_overlap=}")
                 Log.error(f"{potential_invites=}")
                 await ctx.response.send_message(
-                    content=f"No valid invite link could associate you with a specific community, please let your RA know!",
+                    content="No valid invite link could associate you with a specific community, please let your RA know!",
                     ephemeral=True,
                 )
                 # Abort
@@ -510,13 +512,15 @@ async def verify(ctx):
                 Log.ok(
                     f"Overriden invite code '{invite_code}' correctly associated with '{role.name}'"
                 )
-                await logs_channel.send("User {member.name}[{member.id}] used cached invite '{invite_code}'")
+                await logs_channel.send(
+                    "User {member.name}[{member.id}] used cached invite '{invite_code}'"
+                )
             else:
                 try:
                     inv_object = (
                         session.query(DbInvite).filter_by(code=invite_code).one()
                     )
-                except Exception as ex:
+                except Exception:
                     inv_object = None
 
                 if inv_object:
@@ -527,7 +531,9 @@ async def verify(ctx):
                             f"Databased invite '{invite_code}' returned a valid role '{role.name}', assigning this role."
                         )
                         assigned_role = role
-                        await logs_channel.send("User {member.name}[{member.id}] used databased invite '{invite_code}'")
+                        await logs_channel.send(
+                            "User {member.name}[{member.id}] used databased invite '{invite_code}'"
+                        )
                     else:
                         Log.error(
                             f"Databased invite '{invite_code}' did not return a role. This is an error."
@@ -565,8 +571,8 @@ async def verify(ctx):
         verified = True
     else:
         # Fatal error, this should never happen.
-        await ctx.response.send_message(
-            f"Your user ID {member.id} doesn't show up in our records! Please report this error to your RA with Error #404",
+        await ctx.followup.send(
+            content=f"Your user ID {member.id} doesn't show up in our records! Please report this error to your RA with Error #404",
         )
         await logs_channel.send(
             f"User {member.name}[{member.id}] submitted verification but did not end up in records. User will need manually verified or to try again."
@@ -757,7 +763,7 @@ async def setup(ctx):
 
     try:
         exists_guild = session.query(DbGuild).filter_by(ID=ctx.guild.id).one()
-    except Exception as ex:
+    except Exception:
         exists_guild = None
 
     if exists_guild:
@@ -1073,7 +1079,7 @@ async def lookup(ctx, member: discord.Option(discord.Member, "User to lookup")):
         embed.add_field(
             name="Verified?", value=f"{'Yes ✅' if user.verified else 'No ❌'}"
         )
-    except Exception as ex:
+    except Exception:
         embed = discord.Embed(
             title="Lookup Failed",
             description="The user ID provided did not return a user.",
@@ -1090,9 +1096,9 @@ async def lookup(ctx, member: discord.Option(discord.Member, "User to lookup")):
 @discord.ext.commands.has_permissions(administrator=True)
 async def reset_user(ctx, member: discord.Option(discord.Member, "Member to reset")):
     try:
-        user = session.query(DbUser).filter_by(ID=member.id).delete()
+        user_count = session.query(DbUser).filter_by(ID=member.id).delete()
     except:
-        user = None
+        user_count = None
         await ctx.respond(
             f"User ID did not return a database row or could not be deleted: {member.id}",
             ephemeral=True,
@@ -1101,7 +1107,39 @@ async def reset_user(ctx, member: discord.Option(discord.Member, "Member to rese
 
     session.commit()
 
-    await ctx.respond(f"Dropped row for user with ID: {member.id}", ephemeral=True)
+    if user_count > 0:
+        await ctx.respond(f"Dropped row for user with ID: {member.id}", ephemeral=True)
+    else:
+        await ctx.respond(
+            f"No database row exists for user {member.name}[{member.id}], nothing to drop.",
+            ephemeral=True,
+        )
+
+
+# ------------------------------- CONTEXT MENU COMMANDS -------------------------------
+
+
+@bot.user_command(name="Reset User")
+async def ctx_reset_user(ctx, member: discord.Member):
+    try:
+        user_count = session.query(DbUser).filter_by(ID=member.id).delete()
+    except:
+        user_count = 0
+        await ctx.respond(
+            f"User ID did not return a database row or could not be deleted: {member.id}",
+            ephemeral=True,
+        )
+        return
+
+    session.commit()
+
+    if user_count > 0:
+        await ctx.respond(f"Dropped row for user with ID: {member.id}", ephemeral=True)
+    else:
+        await ctx.respond(
+            f"No database row exists for user {member.name}[{member.id}], nothing to drop.",
+            ephemeral=True,
+        )
 
 
 # ------------------------------- EVENT HANDLERS -------------------------------
@@ -1132,7 +1170,7 @@ async def on_scheduled_event_create(scheduled_event):
         await url_modal.wait()
         cover_url = url_modal.url
         # Adds the cover photo to the event if the URL is valid (starts with 'http')
-        if (cover_url.lower()).startswith('http'):
+        if (cover_url.lower()).startswith("http"):
             cover_bytes = urlopen(cover_url).read()
             # Adds the cover photo to the event in the hub server
             await scheduled_event.edit(cover=cover_bytes)
@@ -1142,22 +1180,25 @@ async def on_scheduled_event_create(scheduled_event):
                     continue
                 # Clones the event without a cover photo, then edits the cover photo onto it
                 event_clone = await guild.create_scheduled_event(
-                    name=scheduled_event.name, 
-                    description=scheduled_event.description, 
-                    location=scheduled_event.location, 
-                    start_time=scheduled_event.start_time, 
-                    end_time=scheduled_event.end_time
+                    name=scheduled_event.name,
+                    description=scheduled_event.description,
+                    location=scheduled_event.location,
+                    start_time=scheduled_event.start_time,
+                    end_time=scheduled_event.end_time,
                 )
                 await event_clone.edit(cover=cover_bytes)
             # Deletes the message with buttons and replaces it with a confirmation message
             await interaction.delete_original_message()
-            await channel.send(f'Event **{scheduled_event.name}** successfully created **with** cover image.')
+            await channel.send(
+                f"Event **{scheduled_event.name}** successfully created **with** cover image."
+            )
         # Sends an error message and prompts the user to try again if the URL is invalid
         else:
             await channel.send(
                 """**Error: Invalid URL.**
 Only direct image links are supported. Try again."""
             )
+
     # Executes if the user clicks the 'No' button to skip uploading a cover photo
     async def no_callback(interaction: discord.Interaction):
         await interaction.response.defer()
@@ -1335,7 +1376,7 @@ async def on_member_join(member: discord.Member):
             else:
                 try:
                     inv_object = session.query(DbInvite).filter_by(code=inv.code).one()
-                except Exception as ex:
+                except Exception:
                     inv_object = None
 
                 if inv_object:
@@ -1393,12 +1434,14 @@ async def on_member_join(member: discord.Member):
 
     # Update cache
     invites_cache[member.guild.id] = invites_now
-    
+
     # Log that the user has joined with said invite.
     logs_channel = discord.utils.get(member.guild.channels, name="logs")
     if logs_channel:
-        await logs_channel.send(f"User {member.name}[{member.id}] is associated with invite code {user_to_invite[member.id].code}")
-        
+        await logs_channel.send(
+            f"User {member.name}[{member.id}] is associated with invite code {user_to_invite[member.id].code}"
+        )
+
     Log.ok(
         f"User {member.name}[{member.id}] is associated with invite {user_to_invite[member.id].code}"
     )
