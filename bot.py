@@ -152,7 +152,6 @@ class CommunitySelectDropdown(discord.ui.Select):
             self.add_option(label=choice)
 
     async def callback(self, interaction: discord.Interaction):
-        # await interaction.response.send_message(f"Awesome! I see you picked community {self.values[0]}!", ephemeral=True)
         override_user_to_code[interaction.user.id] = self.opts_to_inv[self.values[0]]
         user_to_invite[interaction.user.id] = self.opts_to_inv[self.values[0]]
         Log.ok(f"{override_user_to_code=}")
@@ -498,6 +497,9 @@ async def verify(ctx):
                 await ctx.response.send_message(
                     "We couldn't find a valid invite code associated with the community you selected.",
                 )
+                await logs_channel.send(
+                    f"Failed to associate invite to role for user {member.name}[{member.id}], no roles were assigned."
+                )
                 Log.error(
                     f"Failed to associate invite to role for user {member.name}[{member.id}], aborting and dumping: {override_user_to_code=}"
                 )
@@ -508,6 +510,7 @@ async def verify(ctx):
                 Log.ok(
                     f"Overriden invite code '{invite_code}' correctly associated with '{role.name}'"
                 )
+                await logs_channel.send("User {member.name}[{member.id}] used cached invite '{invite_code}'")
             else:
                 try:
                     inv_object = (
@@ -524,9 +527,13 @@ async def verify(ctx):
                             f"Databased invite '{invite_code}' returned a valid role '{role.name}', assigning this role."
                         )
                         assigned_role = role
+                        await logs_channel.send("User {member.name}[{member.id}] used databased invite '{invite_code}'")
                     else:
                         Log.error(
                             f"Databased invite '{invite_code}' did not return a role. This is an error."
+                        )
+                        await logs_channel.send(
+                            f"Databased invite '{invite_code}' was not associated with a role. User {member.name}[{member.id}] will need to be manually set."
                         )
                         await ctx.response.send_message(
                             f"The invite link '{invite_code}' couldn't associate you with a specific community, please let your RA know!",
@@ -560,6 +567,9 @@ async def verify(ctx):
         # Fatal error, this should never happen.
         await ctx.response.send_message(
             f"Your user ID {member.id} doesn't show up in our records! Please report this error to your RA with Error #404",
+        )
+        await logs_channel.send(
+            f"User {member.name}[{member.id}] submitted verification but did not end up in records. User will need manually verified or to try again."
         )
         Log.error(f"Failed to verify user {member.name}, dumping: {user_to_email=}")
         email = "FAILED TO VERIFY"
@@ -599,9 +609,15 @@ async def verify(ctx):
             assigned_role,
             reason=f"Member joined with invite code {invite.code}",
         )
+        await logs_channel.send(
+            f"User {member.name}[{member.id}] has been verified with role {assigned_role.name}."
+        )
     else:
         Log.error(
             "Bot was not able to determine a role from the invite link used. Aborting."
+        )
+        await logs_channel.send(
+            f"Unable to determine a role from the invite link used by {member.name}[{member.id}]. No roles will be applied."
         )
         await ctx.response.send_message(
             "The invite used couldn't associate you with a specific community, please let your RA know!",
@@ -1377,6 +1393,12 @@ async def on_member_join(member: discord.Member):
 
     # Update cache
     invites_cache[member.guild.id] = invites_now
+    
+    # Log that the user has joined with said invite.
+    logs_channel = discord.utils.get(member.guild.channels, name="logs")
+    if logs_channel:
+        await logs_channel.send(f"User {member.name}[{member.id}] is associated with invite code {user_to_invite[member.id].code}")
+        
     Log.ok(
         f"User {member.name}[{member.id}] is associated with invite {user_to_invite[member.id].code}"
     )
@@ -1388,7 +1410,6 @@ async def on_guild_join(guild):
 
     # Track the landing channel (verify) of the server
     guild_to_landing[guild.id] = discord.utils.get(guild.channels, name="verify")
-    # Log.info(f"{guild_to_landing=}")
 
     # Cache the invites for the guild as they currently stand (none should be present)
     invites_cache[guild.id] = await guild.invites()
