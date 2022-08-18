@@ -1647,7 +1647,7 @@ async def on_guild_channel_update(
         # Category is not associated with a cached role. This is potentially erroneous.
         else:
             Log.warning(
-                "Category {before.id} was updated but is not associated with a role in cache. This could be an error."
+                f"Category {before.id} was updated but is not associated with a role in cache. This could be an error."
             )
 
 
