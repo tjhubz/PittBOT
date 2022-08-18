@@ -611,7 +611,7 @@ async def verify(ctx):
     else:
         # Otherwise resident
         await member.add_roles(
-            discord.utils.get(guild.roles, name="resident"),
+            discord.utils.get(guild.roles, name="residents"),
             reason=f"Member joined with {invite.code} after RA already set.",
         )
 
