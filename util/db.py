@@ -1,3 +1,8 @@
+"""Database models for persistent storage.
+"""
+
+#pylint: disable=too-few-public-methods
+
 from sqlalchemy import Column, BigInteger, String, Integer, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 
