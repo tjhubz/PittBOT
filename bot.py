@@ -21,7 +21,7 @@ bot = discord.Bot(intents=discord.Intents.all())
 
 TOKEN = os.getenv("PITTBOT_TOKEN")
 DEBUG = False
-VERSION = "0.1.1"
+VERSION = "0.1.2"
 DATABASE_PATH = "dbs/main.db"
 HUB_SERVER_ID = 996607138803748954
 BOT_COMMANDS_ID = 1006618232129585216
