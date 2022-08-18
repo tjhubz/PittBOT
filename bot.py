@@ -475,7 +475,7 @@ async def verify(ctx):
                     f"No valid invite link was found when user {member.name}[{member.id}] verified. This is operation-abortive."
                 )
                 await logs_channel.send(
-                    content=f"**WARNING** No valid invite link was found when user {member.name}[{member.id}] verified. This will abort verification and require manual override."
+                    content=f"**WARNING**: No valid invite link was found when user {member.name}[{member.id}] verified. This will abort verification and require manual override."
                 )
                 Log.error(f"{num_overlap=}")
                 Log.error(f"{potential_invites=}")
@@ -573,6 +573,7 @@ async def verify(ctx):
         # Fatal error, this should never happen.
         await ctx.followup.send(
             content=f"Your user ID {member.id} doesn't show up in our records! Please report this error to your RA with Error #404",
+            ephemeral=True,
         )
         await logs_channel.send(
             f"User {member.name}[{member.id}] submitted verification but did not end up in records. User will need manually verified or to try again."
@@ -1417,6 +1418,8 @@ async def on_member_join(member: discord.Member):
         await logs_channel.send(
             content=f"User {member.name}[{member.id}] invite code was ambiguous, sending them manual selection menu...",
         )
+        
+        return
 
     else:
         # Error
@@ -1428,7 +1431,7 @@ async def on_member_join(member: discord.Member):
         # Update cache
         invites_cache[member.guild.id] = invites_now
         await logs_channel.send(
-            content=f"**WARNING** No valid invite link was found when user {member.name}[{member.id}] joined. This is likely to require manual override."
+            content=f"**WARNING**: No valid invite link was found when user {member.name}[{member.id}] joined. This is likely to require manual override."
         )
         return
 
@@ -1437,14 +1440,23 @@ async def on_member_join(member: discord.Member):
 
     # Log that the user has joined with said invite.
     logs_channel = discord.utils.get(member.guild.channels, name="logs")
-    if logs_channel:
-        await logs_channel.send(
-            f"User {member.name}[{member.id}] is associated with invite code {user_to_invite[member.id].code}"
+    if member.id in user_to_invite:
+        if logs_channel:
+            await logs_channel.send(
+                f"**OK**: User {member.name}[{member.id}] is associated with invite code {user_to_invite[member.id].code}"
+            )
+        
+        Log.ok(
+            f"User {member.name}[{member.id}] is associated with invite {user_to_invite[member.id].code}"
         )
-
-    Log.ok(
-        f"User {member.name}[{member.id}] is associated with invite {user_to_invite[member.id].code}"
-    )
+    else:
+        if logs_channel:
+            await logs_channel.send(
+                f"**ERROR**: User {member.name}[{member.id}] was neither associated with an invite code on join nor sent a manual selection menu."
+            )
+        Log.error(
+            f"User {member.name}[{member.id}] was neither associated with an invite code on join nor sent a manual selection menu."
+        )
 
 
 @bot.event
