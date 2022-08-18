@@ -64,6 +64,8 @@ async def make_categories(
     ras_with_links = []
     # Dictionary that will associate RA links with category channels
     invite_to_role = {}
+    # Associate category ID to role ID as per https://github.com/tjhubz/PittBOT/issues/19
+    category_to_role = {}
 
     # Iterate over all of the RAs in the hastebin response
     for ra_line in ras:
@@ -116,9 +118,7 @@ async def make_categories(
             landing_channel.guild.categories, name="building"
         )
 
-        welcome_category = discord.utils.get(
-            landing_channel.guild.categories, name="info"
-        )
+        info_category = discord.utils.get(landing_channel.guild.categories, name="info")
 
         ras_with_links.append(f"{ra_line} : {invite.url}\n")
 
@@ -130,19 +130,26 @@ async def make_categories(
             color=Colour.blue(),
             permissions=perms,
         )
+
+        # Set permissions for our new category
         await category.set_permissions(new_role, read_messages=True, view_channel=True)
+
+        # Set permissions for other categories
         await building_category.set_permissions(
             new_role, read_messages=True, view_channel=True
         )
-        await welcome_category.set_permissions(
+        await info_category.set_permissions(
             new_role, read_messages=True, view_channel=True
         )
 
+        # Build associations
+        # TODO: Should this associate to the entire object, or just to ID?
         invite_to_role[invite.code] = new_role
+        # ID : ID association, rather than ID : object association
+        category_to_role[category.id] = new_role.id
 
     # Create the text file associating the RAs to links that we will upload.
     with open("ras-with-links.txt", "w") as ra_file:
         ra_file.writelines(ras_with_links)
 
-    # Probably will return multiple pieces of information as a tuple, but for now, just need the invite to role associative data
-    return invite_to_role
+    return (invite_to_role, category_to_role)
