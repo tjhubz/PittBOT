@@ -12,7 +12,7 @@ import requests
 from sqlalchemy.orm import sessionmaker
 import util.invites
 from util.log import Log
-from util.db import DbGuild, DbInvite, DbUser, Base
+from util.db import DbGuild, DbInvite, DbUser, DbCategory, Base
 
 
 bot = discord.Bot(intents=discord.Intents.all())
@@ -21,7 +21,7 @@ bot = discord.Bot(intents=discord.Intents.all())
 
 TOKEN = os.getenv("PITTBOT_TOKEN")
 DEBUG = False
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 DATABASE_PATH = "dbs/main.db"
 HUB_SERVER_ID = 996607138803748954
 BOT_COMMANDS_ID = 1006618232129585216
@@ -72,6 +72,9 @@ invites_cache = {}
 
 # Invite codes to role objects associativity
 invite_to_role = {}
+
+# Category ID to role ID (IMPORTANT!) associativity
+category_to_role = {}
 
 # Associate each guild with its landing channel
 guild_to_landing = {}
@@ -218,10 +221,10 @@ class UnsetupConfirmation(discord.ui.Modal):
 class URLModal(Modal):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.add_item(InputText(label='URL'))
-        
-        self.url = ''
-        
+        self.add_item(InputText(label="URL"))
+
+        self.url = ""
+
     async def callback(self, interaction: discord.Interaction):
         self.url = self.children[0].value
         await interaction.response.defer()
@@ -307,7 +310,7 @@ async def verify(ctx):
         if invite.code in invite_to_role:
             assigned_role = invite_to_role[invite.code]
             Log.ok(
-                f"Invite link {invite.code} is cached with '{assigned_role.name}', assigning this role."
+                f"Invite link {invite.code} is cached with '{assigned_role}', assigning this role."
             )
         else:
             try:
@@ -375,7 +378,7 @@ async def verify(ctx):
                 if invite.code in invite_to_role:
                     assigned_role = invite_to_role[invite.code]
                     Log.ok(
-                        f"Invite link {invite.code} is cached with '{assigned_role.name}', assigning this role."
+                        f"Invite link {invite.code} is cached with '{assigned_role}', assigning this role."
                     )
                 else:
                     try:
@@ -618,7 +621,7 @@ async def verify(ctx):
             reason=f"Member joined with invite code {invite.code}",
         )
         await logs_channel.send(
-            f"User {member.name}[{member.id}] has been verified with role {assigned_role.name}."
+            f"User {member.name}[{member.id}] has been verified with role {assigned_role}."
         )
     else:
         Log.error(
@@ -684,6 +687,9 @@ async def verify(ctx):
 @discord.guild_only()
 @discord.ext.commands.has_permissions(manage_channels=True)
 async def make_categories(ctx, link: str):
+    # Necessary because of Python's dynamic name binding and the way '|=' works
+    global category_to_role
+
     # Defer a response to prevent the 3 second timeout gate from being closed.
     await ctx.defer()
 
@@ -713,15 +719,45 @@ async def make_categories(ctx, link: str):
 
         # Make the categories. This also makes their channels, the roles, and a text file
         # called 'ras-with-links.txt' that returns the list of RAs with the associated invite links.
-        invite_role_dict = await util.invites.make_categories(
+        invite_role_dict, category_role_dict = await util.invites.make_categories(
             guild, ras, guild_to_landing[guild.id]
         )
+
+        # Check that categories were generated correctly
+        if not category_role_dict:
+            await ctx.send_followp(
+                "Failed to associate categories to their roles. This is an internal error.",
+                ephemeral=True,
+            )
+            Log.error(
+                "Failed to associate categories to their roles. This is an internal error."
+            )
+            return
+
+        # Check that invites were generated correctly
         if not invite_role_dict:
             await ctx.send_followp(
                 "Failed to make invites. Check that a #verify channel exists.",
                 ephemeral=True,
             )
+            Log.error("Failed to generate any new invites.")
             return
+
+        # Update category to role cache with newly generated categories
+        category_to_role |= category_role_dict
+
+        # Serialize new items added to category_to_role here
+        for category_id, role_id in category_role_dict.items():
+            category_obj = DbCategory(ID=category_id, role_id=role_id)
+
+            try:
+                session.merge(category_obj)
+            except Exception:
+                Log.error(f"Couldn't merge {{{category_id}:{role_id}}} to database.")
+        try:
+            session.commit()
+        except Exception:
+            Log.error(f"Couldn't merge any categories into to database.")
 
         # Update invite cache, important for on_member_join's functionality
         invites_cache[guild.id] = await guild.invites()
@@ -1163,19 +1199,19 @@ async def on_scheduled_event_create(scheduled_event):
     # Sends message with buttons in #bot-commands
     bot_commands = bot.get_channel(BOT_COMMANDS_ID)
     await bot_commands.send(
-        f'Event **{scheduled_event.name}** successfully created. Would you like to upload a cover image before publishing the event to residence hall servers?',
-        view=cover_view
+        f"Event **{scheduled_event.name}** successfully created. Would you like to upload a cover image before publishing the event to residence hall servers?",
+        view=cover_view,
     )
 
     # Executes if 'Yes' button is clicked
     async def yes_callback(interaction: discord.Interaction):
         # Sends modal to get image URL from user
-        url_modal = URLModal(title='Cover Image URL Entry')
+        url_modal = URLModal(title="Cover Image URL Entry")
         await interaction.response.send_modal(url_modal)
         await url_modal.wait()
         cover_url = url_modal.url
         # Executes if URL is direct image link
-        if (cover_url.lower()).startswith('http'):
+        if (cover_url.lower()).startswith("http"):
             # Deletes message with buttons to avoid double-clicking
             await interaction.delete_original_message()
             # Opens URL and converts contents to bytes object
@@ -1188,17 +1224,17 @@ async def on_scheduled_event_create(scheduled_event):
                     continue
                 # Creates cloned event without cover image
                 event_clone = await guild.create_scheduled_event(
-                    name=scheduled_event.name, 
+                    name=scheduled_event.name,
                     description=scheduled_event.description,
                     location=scheduled_event.location,
                     start_time=scheduled_event.start_time,
-                    end_time=scheduled_event.end_time
+                    end_time=scheduled_event.end_time,
                 )
                 # Adds cover image to cloned event
                 await event_clone.edit(cover=cover_bytes)
             # Sends confirmation message in #bot-commands
             await bot_commands.send(
-                f'Event **{scheduled_event.name}** successfully created **with** cover image.'
+                f"Event **{scheduled_event.name}** successfully created **with** cover image."
             )
         # Sends warning message if URL is not direct image link
         # User can simply click a button in the original message again
@@ -1219,17 +1255,17 @@ Only direct image links are supported. Try again."""
                 continue
             # Creates cloned event
             await guild.create_scheduled_event(
-                name=scheduled_event.name, 
+                name=scheduled_event.name,
                 description=scheduled_event.description,
                 location=scheduled_event.location,
                 start_time=scheduled_event.start_time,
-                end_time=scheduled_event.end_time
+                end_time=scheduled_event.end_time,
             )
         # Sends confirmation message in #bot-commands
         await bot_commands.send(
-            f'Event **{scheduled_event.name}** successfully created **without** cover image.'
+            f"Event **{scheduled_event.name}** successfully created **without** cover image."
         )
-    
+
     # Executes if 'Cancel Event' button is clicked
     async def cancel_callback(interaction: discord.Interaction):
         await interaction.response.defer()
@@ -1239,9 +1275,9 @@ Only direct image links are supported. Try again."""
         await scheduled_event.cancel()
         # Sends confirmation message in #bot-message
         await bot_commands.send(
-            f'Event **{scheduled_event.name}** successfully canceled.'
+            f"Event **{scheduled_event.name}** successfully canceled."
         )
-    
+
     # Assigns an async method to each button
     image_check_yes.callback = yes_callback
     image_check_no.callback = no_callback
@@ -1267,49 +1303,51 @@ async def on_scheduled_event_update(old_scheduled_event, new_scheduled_event):
             # Executes each time an event with the same name is found
             if scheduled_event.name == new_scheduled_event.name:
                 # Syncs edits to scheduled events
-                if str(new_scheduled_event.status) == 'ScheduledEventStatus.scheduled':
-                    if str(scheduled_event.status) == 'ScheduledEventStatus.scheduled':
+                if str(new_scheduled_event.status) == "ScheduledEventStatus.scheduled":
+                    if str(scheduled_event.status) == "ScheduledEventStatus.scheduled":
                         # Edits the event to match the one on the hub server
                         await scheduled_event.edit(
                             description=new_scheduled_event.description,
                             location=new_scheduled_event.location,
                             start_time=new_scheduled_event.start_time,
-                            end_time=new_scheduled_event.end_time
+                            end_time=new_scheduled_event.end_time,
                         )
                 # Syncs manual starts and edits to active events
-                elif str(new_scheduled_event.status) == 'ScheduledEventStatus.active':
-                    if str(scheduled_event.status) == 'ScheduledEventStatus.scheduled':
+                elif str(new_scheduled_event.status) == "ScheduledEventStatus.active":
+                    if str(scheduled_event.status) == "ScheduledEventStatus.scheduled":
                         # Starts the event
                         await scheduled_event.start()
                         event_start = True
-                    elif str(scheduled_event.status) == 'ScheduledEventStatus.active':
+                    elif str(scheduled_event.status) == "ScheduledEventStatus.active":
                         # Edits the event to match the one on the hub server
                         await scheduled_event.edit(
                             description=new_scheduled_event.description,
                             location=new_scheduled_event.location,
-                            end_time=new_scheduled_event.end_time
+                            end_time=new_scheduled_event.end_time,
                         )
     # Sends an appropriate confirmation in #bot-commands depending on what was updated
     bot_commands = bot.get_channel(BOT_COMMANDS_ID)
     if event_start == True:
         await bot_commands.send(
-            f'Event **{new_scheduled_event.name}** successfully started.'
+            f"Event **{new_scheduled_event.name}** successfully started."
         )
-    elif (str(new_scheduled_event.status) == 'ScheduledEventStatus.scheduled') or (str(new_scheduled_event.status) == 'ScheduledEventStatus.active'):
+    elif (str(new_scheduled_event.status) == "ScheduledEventStatus.scheduled") or (
+        str(new_scheduled_event.status) == "ScheduledEventStatus.active"
+    ):
         await bot_commands.send(
-            f'Event **{new_scheduled_event.name}** successfully updated.'
+            f"Event **{new_scheduled_event.name}** successfully updated."
         )
     # Syncs manual completion of active events in addition to sending a confirmation message
-    elif str(new_scheduled_event.status) == 'ScheduledEventStatus.completed':
+    elif str(new_scheduled_event.status) == "ScheduledEventStatus.completed":
         for guild in bot.guilds:
             if guild.id == HUB_SERVER_ID:
                 continue
             for scheduled_event in guild.scheduled_events:
                 if scheduled_event.name == new_scheduled_event.name:
-                    if str(scheduled_event.status) == 'ScheduledEventStatus.active':
+                    if str(scheduled_event.status) == "ScheduledEventStatus.active":
                         await scheduled_event.complete()
         await bot_commands.send(
-            f'Event **{new_scheduled_event.name}** successfully completed.'
+            f"Event **{new_scheduled_event.name}** successfully completed."
         )
 
 
@@ -1332,9 +1370,7 @@ async def on_scheduled_event_delete(deleted_event):
                     await scheduled_event.cancel()
     # Sends confirmation message in #bot-commands
     bot_commands = bot.get_channel(BOT_COMMANDS_ID)
-    await bot_commands.send(
-        f'Event **{deleted_event.name}** successfully canceled.'
-    )
+    await bot_commands.send(f"Event **{deleted_event.name}** successfully canceled.")
 
 
 @bot.event
@@ -1550,6 +1586,72 @@ async def on_guild_join(guild):
 
 
 @bot.event
+async def on_guild_channel_update(
+    before: discord.abc.GuildChannel, after: discord.abc.GuildChannel
+):
+    # We only want to handle category channel name updates
+    if (
+        type(before) is discord.CategoryChannel
+        and type(after) is discord.CategoryChannel
+    ):
+
+        # Check that this category was actually associated with a role.
+        if before.id in category_to_role:
+            Log.info(
+                f"Category {before.id} is associated with {category_to_role[before.id]} and has been updated. Role might be updated."
+            )
+
+            if before.name == after.name:
+                Log.info(
+                    f"Category {before.id}'s name was not changed. Role wasn't updated."
+                )
+                return
+            else:
+                Log.info(
+                    f"Category {before.id}'s name was changed. Role will be updated."
+                )
+
+                # First get role
+                role = discord.utils.get(
+                    after.guild.roles, id=category_to_role[after.id]
+                )
+                # Update role name
+                await role.edit(name=after.name)
+
+                # Forcibly update role names in invite_to_role dict
+                # As it turns out, this code seems to be unnecessary in most cases
+                # However, the modal dropdown menus are based on role NAME, so it may 
+                # be necessary to keep this code. It also means that students
+                # get the most up to date role name in their modal dropdowns.
+                # This should hopefully reduce confusion if an RA says "Hey our channels are
+                # called 'The Squad'" and then a student doesn't see 'The Squad' as an option.
+                
+                for invite_code, role_obj in invite_to_role.items():
+                    if role_obj.id == role.id:
+                        Log.info(f"Invalidated role object: {role_obj=}")
+                        invite_to_role[invite_code] = role
+                        Log.info(f"New role object: {invite_to_role[invite_code]=}")
+                        Log.ok(
+                            f"Invite to role cache has been updated, code {invite_code} changed."
+                        )
+                        # **IMPORTANT**: The bot will only update ONE INVITE CODE. There is NO REASON an invite should be
+                        # associated with more than one role. If this ever happens, this break will need to change.
+                        # For now, though, it makes sense not to loop over every single invite every time a category is updated.
+                        break
+                else:
+                    # Nothing was found to update in the invites cache
+                    Log.warning(
+                        f"No invite was associated with {category_to_role[before.id]}, the invites cache has not been updated."
+                    )
+
+        # Category is not associated with a cached role. This is potentially erroneous.
+        else:
+            Log.warning(
+                f"Category {before.id} was updated but is not associated with a role in cache. This could be an error."
+            )
+
+
+@bot.event
 async def on_ready():
     # Build a default invite cache
     for guild in bot.guilds:
@@ -1568,6 +1670,7 @@ async def on_ready():
                             guild.roles, id=invite_obj.role_id
                         )
             Log.info(f"{invite_to_role=}")
+
         except discord.errors.Forbidden:
             continue
 
@@ -1585,8 +1688,12 @@ async def on_ready():
         except AttributeError:
             continue
 
-    # Log.info(f"{guild_to_landing=}")
+    # Load categories cache
+    for category_obj in session.query(DbCategory).all():
+        category_to_role[category_obj.ID] = category_obj.role_id
 
+    Log.info(f"{category_to_role=}")
+    Log.ok("Bot is ready.")
 
 if DEBUG:
     print(

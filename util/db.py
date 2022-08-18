@@ -1,7 +1,7 @@
 """Database models for persistent storage.
 """
 
-#pylint: disable=too-few-public-methods
+# pylint: disable=too-few-public-methods
 
 from sqlalchemy import Column, BigInteger, String, Integer, Boolean
 from sqlalchemy.ext.declarative import declarative_base
@@ -86,9 +86,7 @@ class DbInvite(Base):
     __tablename__ = "invites"
 
     # Invite code
-    code = Column(
-        "code", String, primary_key=True
-    )
+    code = Column("code", String, primary_key=True)
     # Which guild it belongs to
     guild_id = Column("guildID", BigInteger().with_variant(Integer, "sqlite"))
     # The role ID that this invite is associated with
@@ -98,6 +96,29 @@ class DbInvite(Base):
         return f"""Invite: {{
     code: {self.code}
     guild_id: {self.guild_id}
+    role_id: {self.role_id}
+}}
+"""
+
+
+class DbCategory(Base):
+    """Represents a category in the bot's SQLite3 database.
+    ## Attributes
+
+    `ID: BigInteger`        = the category ID for this category
+    `role_id: BigInteger`   = role ID for the community role this category is associated with
+    """
+
+    __tablename__ = "categories"
+
+    # Category ID
+    ID = Column("id", BigInteger().with_variant(Integer, "sqlite"), primary_key=True)
+    # Community role ID category is associated with
+    role_id = Column("roleID", BigInteger().with_variant(Integer, "sqlite"))
+
+    def __repr__(self):
+        return f"""Category: {{
+    id: {self.ID}
     role_id: {self.role_id}
 }}
 """
