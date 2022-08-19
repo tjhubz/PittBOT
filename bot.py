@@ -2,7 +2,6 @@
 
 import os
 from sqlite3 import IntegrityError
-from unicodedata import category
 from urllib.request import urlopen
 import discord
 import discord.ext
