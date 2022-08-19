@@ -1195,6 +1195,9 @@ async def auto_link(ctx):
     
     category_role_dict = {}
     
+    # List of tuples where tuple[0] = category name and tuple [1] = linked or not linked
+    changed_categories = []
+    
     linked = 0
     
     for channel in channels:
@@ -1204,6 +1207,10 @@ async def auto_link(ctx):
                 Log.info(f"Attempting to link category {channel.name}[{channel.id}] with role {role.name}[{role.id}]")
                 category_role_dict[channel.id] = role.id
                 linked += 1
+                changed_categories.append((channel.name, True))
+            else:
+                changed_categories.append((channel.name, False))
+                
     
     category_to_role |= category_role_dict
 
@@ -1231,8 +1238,15 @@ async def auto_link(ctx):
         ) 
         return
     
+    message_content = f"Linked {linked} categories to associated roles.\n"
+    
+    # Upload a list of categories and whether they were changed or not
+    for category_name, link_status in changed_categories:
+        status = ":white_check_mark:" if link_status else ":no_entry_sign:"
+        message_content += f"\n{category_name}: {status}"
+    
     await ctx.respond(
-        content=f"Linked {linked} categories to associated roles.",
+        content=message_content,
         ephemeral=True
     )
 
