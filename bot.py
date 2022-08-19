@@ -295,6 +295,8 @@ async def verify(ctx):
 
     # Get logs channel for errors
     logs_channel = discord.utils.get(guild.channels, name="logs")
+    if not logs_channel:
+        Log.warning(f"No channel named 'logs' was found in {guild.name}[{guild.id}]")
 
     if not member:
         await ctx.response.send_message(
@@ -328,9 +330,10 @@ async def verify(ctx):
                     Log.error(
                         f"Databased invite '{inv_object.code}' did not return a role to assign to {member.name}[{member.id}]. This is an error."
                     )
-                    await logs_channel.send(
-                        content=f"Databased invite '{inv_object.code}' did not return a role to assign to {member.name}[{member.id}]. This is an error."
-                    )
+                    if logs_channel:
+                        await logs_channel.send(
+                            content=f"Databased invite '{inv_object.code}' did not return a role to assign to {member.name}[{member.id}]. This is an error."
+                        )
                     # Abort
                     return
     else:
@@ -400,9 +403,10 @@ async def verify(ctx):
                             Log.error(
                                 f"Databased invite '{inv_object.code}' did not return a role to assign to {member.name}[{member.id}]. This is an error."
                             )
-                            await logs_channel.send(
-                                content=f"Databased invite '{inv_object.code}' did not return a role to assign to {member.name}[{member.id}]. This is an error."
-                            )
+                            if logs_channel:
+                                await logs_channel.send(
+                                    content=f"Databased invite '{inv_object.code}' did not return a role to assign to {member.name}[{member.id}]. This is an error."
+                                )
                             # Abort
                             return
 
@@ -444,9 +448,10 @@ async def verify(ctx):
                                 await ctx.followup.send(
                                     f"The invite link '{inv.code}' couldn't associate you with a specific community, please let your RA know!",
                                 )
-                                await logs_channel.send(
-                                    content=f"Databased invite '{inv.code}' did not return a role to assign to {member.name}[{member.id}]. This is an error."
-                                )
+                                if logs_channel:
+                                    await logs_channel.send(
+                                        content=f"Databased invite '{inv.code}' did not return a role to assign to {member.name}[{member.id}]. This is an error."
+                                    )
                         else:
                             Log.error(
                                 f"Invite link {inv.code} was neither cached nor found in the database. This code will be ignored. This is an error. "
@@ -454,9 +459,10 @@ async def verify(ctx):
                             await ctx.followup.send(
                                 f"The invite link '{inv.code}' couldn't associate you with a specific community, please let your RA know!",
                             )
-                            await logs_channel.send(
-                                content=f"The invite link '{inv.code}' couldn't associate {member.name}[{member.id}] with a specific community. This will probably need manual override.",
-                            )
+                            if logs_channel:
+                                await logs_channel.send(
+                                    content=f"The invite link '{inv.code}' couldn't associate {member.name}[{member.id}] with a specific community. This will probably need manual override.",
+                                )
 
                 # Send view with options and bail out of function
                 # It will be re-initiated by the dropdown menu
@@ -479,9 +485,10 @@ async def verify(ctx):
                 Log.error(
                     f"No valid invite link was found when user {member.name}[{member.id}] verified. This is operation-abortive."
                 )
-                await logs_channel.send(
-                    content=f"**WARNING**: No valid invite link was found when user {member.name}[{member.id}] verified. This will abort verification and require manual override."
-                )
+                if logs_channel:
+                    await logs_channel.send(
+                        content=f"**WARNING**: No valid invite link was found when user {member.name}[{member.id}] verified. This will abort verification and require manual override."
+                    )
                 Log.error(f"{num_overlap=}")
                 Log.error(f"{potential_invites=}")
                 await ctx.response.send_message(
@@ -504,9 +511,10 @@ async def verify(ctx):
                 await ctx.response.send_message(
                     "We couldn't find a valid invite code associated with the community you selected.",
                 )
-                await logs_channel.send(
-                    f"Failed to associate invite to role for user {member.name}[{member.id}], no roles were assigned."
-                )
+                if logs_channel:
+                    await logs_channel.send(
+                        f"Failed to associate invite to role for user {member.name}[{member.id}], no roles were assigned."
+                    )
                 Log.error(
                     f"Failed to associate invite to role for user {member.name}[{member.id}], aborting and dumping: {override_user_to_code=}"
                 )
@@ -517,9 +525,10 @@ async def verify(ctx):
                 Log.ok(
                     f"Overriden invite code '{invite_code}' correctly associated with '{role.name}'"
                 )
-                await logs_channel.send(
-                    "User {member.name}[{member.id}] used cached invite '{invite_code}'"
-                )
+                if logs_channel:
+                    await logs_channel.send(
+                        "User {member.name}[{member.id}] used cached invite '{invite_code}'"
+                    )
             else:
                 try:
                     inv_object = (
@@ -536,16 +545,18 @@ async def verify(ctx):
                             f"Databased invite '{invite_code}' returned a valid role '{role.name}', assigning this role."
                         )
                         assigned_role = role
-                        await logs_channel.send(
-                            "User {member.name}[{member.id}] used databased invite '{invite_code}'"
-                        )
+                        if logs_channel:
+                            await logs_channel.send(
+                                "User {member.name}[{member.id}] used databased invite '{invite_code}'"
+                            )
                     else:
                         Log.error(
                             f"Databased invite '{invite_code}' did not return a role. This is an error."
                         )
-                        await logs_channel.send(
-                            f"Databased invite '{invite_code}' was not associated with a role. User {member.name}[{member.id}] will need to be manually set."
-                        )
+                        if logs_channel:
+                            await logs_channel.send(
+                                f"Databased invite '{invite_code}' was not associated with a role. User {member.name}[{member.id}] will need to be manually set."
+                            )
                         await ctx.response.send_message(
                             f"The invite link '{invite_code}' couldn't associate you with a specific community, please let your RA know!",
                         )
@@ -580,9 +591,10 @@ async def verify(ctx):
             content=f"Your user ID {member.id} doesn't show up in our records! Please report this error to your RA with Error #404",
             ephemeral=True,
         )
-        await logs_channel.send(
-            f"User {member.name}[{member.id}] submitted verification but did not end up in records. User will need manually verified or to try again."
-        )
+        if logs_channel:
+            await logs_channel.send(
+                f"User {member.name}[{member.id}] submitted verification but did not end up in records. User will need manually verified or to try again."
+            )
         Log.error(f"Failed to verify user {member.name}, dumping: {user_to_email=}")
         email = "FAILED TO VERIFY"
         verified = False
@@ -596,7 +608,8 @@ async def verify(ctx):
     await member.edit(nick=nickname)
 
     # Send message in logs channel when they successfully verify
-    await logs_channel.send(content=f"Verified {member.name} with email '{email}'")
+    if logs_channel:
+        await logs_channel.send(content=f"Verified {member.name} with email '{email}'")
 
     # Need to give the member the appropriate role
     is_user_ra = False
@@ -612,8 +625,10 @@ async def verify(ctx):
                 reason=f"Member joined with first use of invite code {invite.code}",
             )
         else:
-            Log.error(f"Guild {guild.name}[{guild.id}] has no role named 'RA' but user {member.name}[{member.id}] should have received this role")
-                
+            Log.error(
+                f"Guild {guild.name}[{guild.id}] has no role named 'RA' but user {member.name}[{member.id}] should have received this role"
+            )
+
     else:
         # Otherwise resident
         residents_role = discord.utils.get(guild.roles, name="residents")
@@ -623,23 +638,27 @@ async def verify(ctx):
                 reason=f"Member joined with {invite.code} after RA already set.",
             )
         else:
-            Log.error(f"Guild {guild.name}[{guild.id}] does not have a role named 'residents' but user {member.name}[{member.id}] should have received this role")
+            Log.error(
+                f"Guild {guild.name}[{guild.id}] does not have a role named 'residents' but user {member.name}[{member.id}] should have received this role"
+            )
 
     if assigned_role:
         await member.add_roles(
             assigned_role,
             reason=f"Member joined with invite code {invite.code}",
         )
-        await logs_channel.send(
-            f"User {member.name}[{member.id}] has been verified with role {assigned_role}."
-        )
+        if logs_channel:
+            await logs_channel.send(
+                f"User {member.name}[{member.id}] has been verified with role {assigned_role}."
+            )
     else:
         Log.error(
             "Bot was not able to determine a role from the invite link used. Aborting."
         )
-        await logs_channel.send(
-            f"Unable to determine a role from the invite link used by {member.name}[{member.id}]. No roles will be applied."
-        )
+        if logs_channel:
+            await logs_channel.send(
+                f"Unable to determine a role from the invite link used by {member.name}[{member.id}]. No roles will be applied."
+            )
         await ctx.response.send_message(
             "The invite used couldn't associate you with a specific community, please let your RA know!",
         )
@@ -696,7 +715,13 @@ async def verify(ctx):
 )
 @discord.guild_only()
 @discord.ext.commands.has_permissions(manage_channels=True)
-async def make_categories(ctx, link: str):
+async def make_categories(
+    ctx,
+    link: discord.Option(
+        str,
+        description="URL to raw hastebin or pastebin page with list of RAs in format 'lastname firstname' per line",
+    ),
+):
     # Necessary because of Python's dynamic name binding and the way '|=' works
     global category_to_role
 
@@ -980,10 +1005,12 @@ async def set_user(
     if is_ra:
         ra_role = discord.utils.get(ctx.guild.roles, name="RA")
         if not ra_role:
-            Log.warning(f"Guild {ctx.guild.name}[{ctx.guild.id}] does not have a role named 'RA'")
+            Log.warning(
+                f"Guild {ctx.guild.name}[{ctx.guild.id}] does not have a role named 'RA'"
+            )
             await ctx.followup.send(
                 "There is no role named 'RA' in this guild, but the user was set to be an RA. User will not receive any elevated RA role.",
-                ephemeral=True
+                ephemeral=True,
             )
         else:
             try:
@@ -1083,10 +1110,12 @@ async def set_ra(
 
     ra_role = discord.utils.get(ctx.guild.roles, name="RA")
     if not ra_role:
-        Log.warning(f"Guild {ctx.guild.name}[{ctx.guild.id}] does not have a role named 'RA'")
+        Log.warning(
+            f"Guild {ctx.guild.name}[{ctx.guild.id}] does not have a role named 'RA'"
+        )
         await ctx.followup.send(
             "There is no role named 'RA' in this guild, but the user was set to be an RA. User will not receive any elevated RA role.",
-            ephemeral=True
+            ephemeral=True,
         )
     else:
         try:
@@ -1186,32 +1215,33 @@ async def reset_user(ctx, member: discord.Option(discord.Member, "Member to rese
 @discord.guild_only()
 async def auto_link(ctx):
     global category_to_role
-    
+
     # For backwards compatibility, search through all categories in the
-    # server and if any has a name that matches a role exactly, link that 
+    # server and if any has a name that matches a role exactly, link that
     # category to that role by hand.
-    
+
     channels = await ctx.guild.fetch_channels()
-    
+
     category_role_dict = {}
-    
+
     # List of tuples where tuple[0] = category name and tuple [1] = linked or not linked
     changed_categories = []
-    
+
     linked = 0
-    
+
     for channel in channels:
         if type(channel) is discord.CategoryChannel:
             role = discord.utils.get(ctx.guild.roles, name=channel.name)
             if role:
-                Log.info(f"Attempting to link category {channel.name}[{channel.id}] with role {role.name}[{role.id}]")
+                Log.info(
+                    f"Attempting to link category {channel.name}[{channel.id}] with role {role.name}[{role.id}]"
+                )
                 category_role_dict[channel.id] = role.id
                 linked += 1
                 changed_categories.append((channel.name, True))
             else:
                 changed_categories.append((channel.name, False))
-                
-    
+
     category_to_role |= category_role_dict
 
     # Serialize new items added to category_to_role in the database
@@ -1224,31 +1254,29 @@ async def auto_link(ctx):
             Log.error(f"Couldn't merge {{{category_id}:{role_id}}} to database.")
             await ctx.followup.send(
                 content=f"We couldn't merge {{{category_id}:{role_id}}} into the database.",
-                ephemeral=True
+                ephemeral=True,
             )
         else:
             Log.ok(f"Linked {category_id} to {role_id}")
     try:
         session.commit()
     except Exception:
-        Log.error(f"Couldn't merge any categories into to database.") 
+        Log.error(f"Couldn't merge any categories into to database.")
         await ctx.respond(
             content="We couldn't merge any categories into the database.",
-            ephemeral=True
-        ) 
+            ephemeral=True,
+        )
         return
-    
+
     message_content = f"Linked {linked} categories to associated roles.\n"
-    
+
     # Upload a list of categories and whether they were changed or not
     for category_name, link_status in changed_categories:
         status = ":white_check_mark:" if link_status else ":no_entry_sign:"
         message_content += f"\n{category_name}: {status}"
-    
-    await ctx.respond(
-        content=message_content,
-        ephemeral=True
-    )
+
+    await ctx.respond(content=message_content, ephemeral=True)
+
 
 # ------------------------------- CONTEXT MENU COMMANDS -------------------------------
 
@@ -1485,6 +1513,11 @@ async def on_member_join(member: discord.Member):
     # Get logs channel for errors
     logs_channel = discord.utils.get(member.guild.channels, name="logs")
 
+    if not logs_channel:
+        Log.warning(
+            f"No channel 'logs' found in {member.guild.name}[{member.guild.id}]"
+        )
+
     # Get invite snapshot ASAP after guild is determined
     # Invites after user joined
     invites_now = await member.guild.invites()
@@ -1564,16 +1597,18 @@ async def on_member_join(member: discord.Member):
                         Log.error(
                             f"Databased invite '{inv.code}' did not return a role to assign to {member.name}[{member.id}]. This is an error."
                         )
-                        await logs_channel.send(
-                            content=f"Databased invite '{inv.code}' did not return a role to assign to {member.name}[{member.id}]. This is an error."
-                        )
+                        if logs_channel:
+                            await logs_channel.send(
+                                content=f"Databased invite '{inv.code}' did not return a role to assign to {member.name}[{member.id}]. This is an error."
+                            )
                 else:
                     Log.error(
                         f"Invite link {inv.code} was neither cached nor found in the database. This code will be ignored. This is an error."
                     )
-                    await logs_channel.send(
-                        content=f"Invite link {inv.code} was neither cached nor found in the database. This code will be ignored. This is an error."
-                    )
+                    if logs_channel:
+                        await logs_channel.send(
+                            content=f"Invite link {inv.code} was neither cached nor found in the database. This code will be ignored. This is an error."
+                        )
 
         # Send view with options which will forcibly initiate verification
         Log.info(f"{options=}")
@@ -1589,7 +1624,7 @@ async def on_member_join(member: discord.Member):
         await logs_channel.send(
             content=f"User {member.name}[{member.id}] invite code was ambiguous, sending them manual selection menu...",
         )
-        
+
         return
 
     else:
@@ -1601,9 +1636,10 @@ async def on_member_join(member: discord.Member):
         Log.error(f"{potential_invites=}")
         # Update cache
         invites_cache[member.guild.id] = invites_now
-        await logs_channel.send(
-            content=f"**WARNING**: No valid invite link was found when user {member.name}[{member.id}] joined. This is likely to require manual override."
-        )
+        if logs_channel:
+            await logs_channel.send(
+                content=f"**WARNING**: No valid invite link was found when user {member.name}[{member.id}] joined. This is likely to require manual override."
+            )
         return
 
     # Update cache
@@ -1611,12 +1647,14 @@ async def on_member_join(member: discord.Member):
 
     # Log that the user has joined with said invite.
     logs_channel = discord.utils.get(member.guild.channels, name="logs")
+    if not logs_channel:
+        Log.warning(f"No channel 'logs' in {member.guild.name}[{member.guild.id}]")
     if member.id in user_to_invite:
         if logs_channel:
             await logs_channel.send(
                 f"**OK**: User {member.name}[{member.id}] is associated with invite code {user_to_invite[member.id].code}"
             )
-        
+
         Log.ok(
             f"User {member.name}[{member.id}] is associated with invite {user_to_invite[member.id].code}"
         )
@@ -1681,9 +1719,7 @@ async def on_guild_join(guild):
         if msg.author == bot.user and msg.content == VERIFICATION_MESSAGE:
             await msg.delete()
             break
-    await guild_to_landing[guild.id].send(
-        content=VERIFICATION_MESSAGE, view=view
-    )
+    await guild_to_landing[guild.id].send(content=VERIFICATION_MESSAGE, view=view)
 
 
 @bot.event
@@ -1721,12 +1757,12 @@ async def on_guild_channel_update(
 
                 # Forcibly update role names in invite_to_role dict
                 # As it turns out, this code seems to be unnecessary in most cases
-                # However, the modal dropdown menus are based on role NAME, so it may 
+                # However, the modal dropdown menus are based on role NAME, so it may
                 # be necessary to keep this code. It also means that students
                 # get the most up to date role name in their modal dropdowns.
                 # This should hopefully reduce confusion if an RA says "Hey our channels are
                 # called 'The Squad'" and then a student doesn't see 'The Squad' as an option.
-                
+
                 for invite_code, role_obj in invite_to_role.items():
                     if role_obj.id == role.id:
                         Log.info(f"Invalidated role object: {role_obj=}")
@@ -1800,6 +1836,7 @@ async def on_ready():
 
     Log.info(f"{category_to_role=}")
     Log.ok("Bot is ready.")
+
 
 if DEBUG:
     print(
