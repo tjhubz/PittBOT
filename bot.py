@@ -110,12 +110,15 @@ class VerifyModal(Modal):
 
     async def callback(self, interaction: discord.Interaction):
         user_to_email[interaction.user.id] = self.children[0].value
+        
         if "@pitt.edu" in self.children[0].value:
+            Log.ok(f"{interaction.user.name} attempted to verify with email '{user_to_email[interaction.user.id]}' and succeeded")
             await interaction.response.send_message(
                 f"Welcome {interaction.user.mention}! Thank you for verifying. You can now exit this channel. Check out the channels on the left! If you are on mobile, click the three lines in the top left.",
                 ephemeral=True,
             )
         else:
+            Log.warning(f"{interaction.user.name} attempted to verify with email '{user_to_email[interaction.user.id]}' but was denied")
             await interaction.response.send_message(
                 "Only @pitt.edu emails will be accepted. Please retry by pressing the green button.",
                 ephemeral=True,
