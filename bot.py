@@ -2,6 +2,7 @@
 
 import os
 from sqlite3 import IntegrityError
+from unicodedata import category
 from urllib.request import urlopen
 import discord
 import discord.ext
@@ -1179,6 +1180,63 @@ async def reset_user(ctx, member: discord.Option(discord.Member, "Member to rese
         )
 
 
+@bot.slash_command(
+    description="Manually link any categories whose names match a role, for backwards compatibility."
+)
+@discord.ext.commands.has_permissions(administrator=True)
+@discord.guild_only()
+async def auto_link(ctx):
+    global category_to_role
+    
+    # For backwards compatibility, search through all categories in the
+    # server and if any has a name that matches a role exactly, link that 
+    # category to that role by hand.
+    
+    channels = await ctx.guild.fetch_channels()
+    
+    category_role_dict = {}
+    
+    linked = 0
+    
+    for channel in channels:
+        if type(channel) is discord.CategoryChannel:
+            role = discord.utils.get(ctx.guild.roles, name=channel.name)
+            if role:
+                Log.info(f"Attempting to link category {channel.name}[{channel.id}] with role {role.name}[{role.id}]")
+                category_role_dict[channel.id] = role.id
+                linked += 1
+    
+    category_to_role |= category_role_dict
+
+    # Serialize new items added to category_to_role in the database
+    for category_id, role_id in category_role_dict.items():
+        category_obj = DbCategory(ID=category_id, role_id=role_id)
+
+        try:
+            session.merge(category_obj)
+        except Exception:
+            Log.error(f"Couldn't merge {{{category_id}:{role_id}}} to database.")
+            await ctx.followup.send(
+                content=f"We couldn't merge {{{category_id}:{role_id}}} into the database.",
+                ephemeral=True
+            )
+        else:
+            Log.ok(f"Linked {category_id} to {role_id}")
+    try:
+        session.commit()
+    except Exception:
+        Log.error(f"Couldn't merge any categories into to database.") 
+        await ctx.respond(
+            content="We couldn't merge any categories into the database.",
+            ephemeral=True
+        ) 
+        return
+    
+    await ctx.respond(
+        content=f"Linked {linked} categories to associated roles.",
+        ephemeral=True
+    )
+
 # ------------------------------- CONTEXT MENU COMMANDS -------------------------------
 
 
@@ -1723,7 +1781,7 @@ async def on_ready():
         except AttributeError:
             continue
 
-    # Load categories cache
+    # Load categories cache from database
     for category_obj in session.query(DbCategory).all():
         category_to_role[category_obj.ID] = category_obj.role_id
 
