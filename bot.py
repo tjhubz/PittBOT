@@ -28,6 +28,7 @@ BOT_COMMANDS_ID = 1006618232129585216
 ERRORS_CHANNEL_ID = 1008400699689799712
 LONG_DELETE_TIME = 60.0
 SHORT_DELETE_TIME = 15.0
+VERIFICATION_MESSAGE = "Click the button below to get verified!"
 
 # ------------------------------- DATABASE -------------------------------
 
@@ -604,16 +605,25 @@ async def verify(ctx):
     if invite.uses == 0:
         # First use of invite
         is_user_ra = True
-        await member.add_roles(
-            discord.utils.get(guild.roles, name="RA"),
-            reason=f"Member joined with first use of invite code {invite.code}",
-        )
+        ra_role = discord.utils.get(guild.roles, name="RA")
+        if ra_role:
+            await member.add_roles(
+                ra_role,
+                reason=f"Member joined with first use of invite code {invite.code}",
+            )
+        else:
+            Log.error(f"Guild {guild.name}[{guild.id}] has no role named 'RA' but user {member.name}[{member.id}] should have received this role")
+                
     else:
         # Otherwise resident
-        await member.add_roles(
-            discord.utils.get(guild.roles, name="residents"),
-            reason=f"Member joined with {invite.code} after RA already set.",
-        )
+        residents_role = discord.utils.get(guild.roles, name="residents")
+        if residents_role:
+            await member.add_roles(
+                residents_role,
+                reason=f"Member joined with {invite.code} after RA already set.",
+            )
+        else:
+            Log.error(f"Guild {guild.name}[{guild.id}] does not have a role named 'residents' but user {member.name}[{member.id}] should have received this role")
 
     if assigned_role:
         await member.add_roles(
@@ -969,13 +979,20 @@ async def set_user(
 
     if is_ra:
         ra_role = discord.utils.get(ctx.guild.roles, name="RA")
-        try:
-            await member.add_roles(ra_role, reason="Manual override")
-        except discord.errors.Forbidden:
-            await ctx.respond(
-                "I don't have permission to modify this user's roles. Ensure that my bot role is higher on the role list than the user's highest role.",
-                ephemeral=True,
+        if not ra_role:
+            Log.warning(f"Guild {ctx.guild.name}[{ctx.guild.id}] does not have a role named 'RA'")
+            await ctx.followup.send(
+                "There is no role named 'RA' in this guild, but the user was set to be an RA. User will not receive any elevated RA role.",
+                ephemeral=True
             )
+        else:
+            try:
+                await member.add_roles(ra_role, reason="Manual override")
+            except discord.errors.Forbidden:
+                await ctx.respond(
+                    "I don't have permission to modify this user's roles. Ensure that my bot role is higher on the role list than the user's highest role.",
+                    ephemeral=True,
+                )
 
     try:
         user = session.query(DbUser).filter_by(ID=member.id).one()
@@ -1064,16 +1081,24 @@ async def set_ra(
         await ctx.respond(f"I couldn't find a member {member}.", ephemeral=True)
         return
 
-    try:
-        await member.add_roles(
-            discord.utils.get(ctx.guild.roles, name="RA"),
-            reason=f"Manual override",
+    ra_role = discord.utils.get(ctx.guild.roles, name="RA")
+    if not ra_role:
+        Log.warning(f"Guild {ctx.guild.name}[{ctx.guild.id}] does not have a role named 'RA'")
+        await ctx.followup.send(
+            "There is no role named 'RA' in this guild, but the user was set to be an RA. User will not receive any elevated RA role.",
+            ephemeral=True
         )
-    except discord.errors.Forbidden:
-        await ctx.respond(
-            "I don't have permission to modify this user's roles. Ensure that my bot role is higher on the role list than the user's highest role.",
-            ephemeral=True,
-        )
+    else:
+        try:
+            await member.add_roles(
+                ra_role,
+                reason=f"Manual override",
+            )
+        except discord.errors.Forbidden:
+            await ctx.respond(
+                "I don't have permission to modify this user's roles. Ensure that my bot role is higher on the role list than the user's highest role.",
+                ephemeral=True,
+            )
 
     if community:
         try:
@@ -1153,6 +1178,77 @@ async def reset_user(ctx, member: discord.Option(discord.Member, "Member to rese
             ephemeral=True,
         )
 
+
+@bot.slash_command(
+    description="Manually link any categories whose names match a role, for backwards compatibility."
+)
+@discord.ext.commands.has_permissions(administrator=True)
+@discord.guild_only()
+async def auto_link(ctx):
+    global category_to_role
+    
+    # For backwards compatibility, search through all categories in the
+    # server and if any has a name that matches a role exactly, link that 
+    # category to that role by hand.
+    
+    channels = await ctx.guild.fetch_channels()
+    
+    category_role_dict = {}
+    
+    # List of tuples where tuple[0] = category name and tuple [1] = linked or not linked
+    changed_categories = []
+    
+    linked = 0
+    
+    for channel in channels:
+        if type(channel) is discord.CategoryChannel:
+            role = discord.utils.get(ctx.guild.roles, name=channel.name)
+            if role:
+                Log.info(f"Attempting to link category {channel.name}[{channel.id}] with role {role.name}[{role.id}]")
+                category_role_dict[channel.id] = role.id
+                linked += 1
+                changed_categories.append((channel.name, True))
+            else:
+                changed_categories.append((channel.name, False))
+                
+    
+    category_to_role |= category_role_dict
+
+    # Serialize new items added to category_to_role in the database
+    for category_id, role_id in category_role_dict.items():
+        category_obj = DbCategory(ID=category_id, role_id=role_id)
+
+        try:
+            session.merge(category_obj)
+        except Exception:
+            Log.error(f"Couldn't merge {{{category_id}:{role_id}}} to database.")
+            await ctx.followup.send(
+                content=f"We couldn't merge {{{category_id}:{role_id}}} into the database.",
+                ephemeral=True
+            )
+        else:
+            Log.ok(f"Linked {category_id} to {role_id}")
+    try:
+        session.commit()
+    except Exception:
+        Log.error(f"Couldn't merge any categories into to database.") 
+        await ctx.respond(
+            content="We couldn't merge any categories into the database.",
+            ephemeral=True
+        ) 
+        return
+    
+    message_content = f"Linked {linked} categories to associated roles.\n"
+    
+    # Upload a list of categories and whether they were changed or not
+    for category_name, link_status in changed_categories:
+        status = ":white_check_mark:" if link_status else ":no_entry_sign:"
+        message_content += f"\n{category_name}: {status}"
+    
+    await ctx.respond(
+        content=message_content,
+        ephemeral=True
+    )
 
 # ------------------------------- CONTEXT MENU COMMANDS -------------------------------
 
@@ -1580,8 +1676,13 @@ async def on_guild_join(guild):
     view = VerifyView(timeout=None)
 
     # Finished
+    # Delete old verification message
+    async for msg in guild_to_landing[guild.id].history():
+        if msg.author == bot.user and msg.content == VERIFICATION_MESSAGE:
+            await msg.delete()
+            break
     await guild_to_landing[guild.id].send(
-        content="Click the button below to get verified!", view=view
+        content=VERIFICATION_MESSAGE, view=view
     )
 
 
@@ -1682,13 +1783,18 @@ async def on_ready():
 
         # Finished
         try:
+            # Delete old verification message
+            async for msg in guild_to_landing[guild.id].history():
+                if msg.author == bot.user and msg.content == VERIFICATION_MESSAGE:
+                    await msg.delete()
+                    break
             await guild_to_landing[guild.id].send(
-                content="Click the button below to get verified!", view=view
+                content=VERIFICATION_MESSAGE, view=view
             )
         except AttributeError:
             continue
 
-    # Load categories cache
+    # Load categories cache from database
     for category_obj in session.query(DbCategory).all():
         category_to_role[category_obj.ID] = category_obj.role_id
 

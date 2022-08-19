@@ -5,6 +5,7 @@ import asyncio
 import discord
 from discord import Colour, Permissions
 import requests
+from .log import Log
 
 # This file should have NO STATE. All functions are
 # intentionally pure (or at least faux-pure) because
@@ -118,7 +119,9 @@ async def make_categories(
             landing_channel.guild.categories, name="building"
         )
 
-        info_category = discord.utils.get(landing_channel.guild.categories, name="info")
+        info_category = discord.utils.get(
+            landing_channel.guild.categories, name="info"
+        )
 
         ras_with_links.append(f"{ra_line} : {invite.url}\n")
 
@@ -135,12 +138,19 @@ async def make_categories(
         await category.set_permissions(new_role, read_messages=True, view_channel=True)
 
         # Set permissions for other categories
-        await building_category.set_permissions(
-            new_role, read_messages=True, view_channel=True
-        )
-        await info_category.set_permissions(
-            new_role, read_messages=True, view_channel=True
-        )
+        if building_category:
+            await building_category.set_permissions(
+                new_role, read_messages=True, view_channel=True
+            )
+        else:
+            Log.warning(f"Guild {guild.name}[{guild.id}] does not have a category named 'building'")
+        
+        if info_category:
+            await info_category.set_permissions(
+                new_role, read_messages=True, view_channel=True
+            )
+        else:
+            Log.warning(f"Guild {guild.name}[{guild.id}] does not have a category named 'info'")
 
         # Build associations
         # TODO: Should this associate to the entire object, or just to ID?
