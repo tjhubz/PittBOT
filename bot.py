@@ -1232,6 +1232,9 @@ async def lookup(ctx, member: discord.Option(discord.Member, "User to lookup")):
 )
 @discord.ext.commands.has_permissions(administrator=True)
 async def reset_user(ctx, member: discord.Option(discord.Member, "Member to reset")):
+    if member.id in actively_verifying:
+        actively_verifying.remove(member.id)
+        
     try:
         user_count = session.query(DbUser).filter_by(ID=member.id).delete()
     except:
@@ -1241,9 +1244,6 @@ async def reset_user(ctx, member: discord.Option(discord.Member, "Member to rese
             ephemeral=True,
         )
         return
-    
-    if member.id in actively_verifying:
-        actively_verifying.remove(member.id)
 
     session.commit()
 
@@ -1331,6 +1331,9 @@ async def auto_link(ctx):
 
 @bot.user_command(name="Reset User")
 async def ctx_reset_user(ctx, member: discord.Member):
+    if member.id in actively_verifying:
+        actively_verifying.remove(member.id)
+    
     try:
         user_count = session.query(DbUser).filter_by(ID=member.id).delete()
     except:
@@ -1340,9 +1343,6 @@ async def ctx_reset_user(ctx, member: discord.Member):
             ephemeral=True,
         )
         return
-    
-    if member.id in actively_verifying:
-        actively_verifying.remove(member.id)
 
     session.commit()
 
