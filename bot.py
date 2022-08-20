@@ -1,7 +1,6 @@
 # pylint: disable=missing-class-docstring,missing-function-docstring
 
 import os
-from socket import inet_aton
 from sqlite3 import IntegrityError
 from urllib.request import urlopen
 import discord
@@ -795,8 +794,6 @@ async def verify(ctx):
     
     user_to_assigned_invite[member.id] = invite
     user_to_assigned_role[member.id] = assigned_role
-
-    email = "default"
 
     modal = VerifyModal(title="Verification", timeout=60)
 
