@@ -58,6 +58,7 @@ with open("config.json", "r") as config:
     # This is a path to the database RELATIVE to THIS (bot.py) file.
     DATABASE_PATH = data["database_path"] or "dbs/test.db"
 
+os.makedirs(os.path.dirname(DATABASE_PATH),exist_ok=True)
 # Database initialization
 db = sqlalchemy.create_engine(f"sqlite:///{DATABASE_PATH}")
 # Database session init
