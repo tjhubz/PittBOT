@@ -99,10 +99,6 @@ override_user_to_code = {}
 # joins
 user_to_invite = {}
 
-# List of IDs actively verifying, to prevent people from button-spamming
-# verify and causing weird interaction issues with the discord API
-actively_verifying = []
-
 # Assigned invites associativity
 user_to_assigned_invite = {}
 
@@ -182,11 +178,6 @@ class VerifyModal(Modal):
                 "We couldn't find out which community you tried to join. Please retry by pressing the green button or typing `/verify` in the verify channel.",
                 ephemeral=True,
             )
-            
-        if "@pitt.edu" not in email:
-            if member.id in actively_verifying:
-                actively_verifying.remove(member.id)
-            return
 
         # Set the user's nickname to their email address or preferred name on successful verification
         if member.id in user_to_nickname:
@@ -252,8 +243,6 @@ class VerifyModal(Modal):
             await interaction.response.send_message(
                 "The invite used couldn't associate you with a specific community, please let your RA know!",
             )
-            if member.id in actively_verifying:
-                actively_verifying.remove(member.id)
             return
         
         await interaction.response.send_message(
@@ -307,8 +296,6 @@ class VerifyModal(Modal):
             del user_to_invite[member.id]
         if member.id in user_to_nickname:
             del user_to_nickname[member.id]
-        if member.id in actively_verifying:
-            actively_verifying.remove(member.id)
         session.commit()  
 
         async def on_timeout(self):
@@ -445,16 +432,6 @@ async def verify(ctx):
         author = ctx.author
     except AttributeError:
         author = ctx.user
-        
-    if author.id not in actively_verifying:
-        actively_verifying.append(author.id)
-    else:
-        Log.warning(f"{author.name}[{author.id}] tried to reinitiate verify but appears to have an existent verify interaction")
-        await ctx.response.send_message(
-                "It seems like you're already in the process of verifying or cancelled the process by closing a pop-up dialog. Please try again in a minute or so. If that doesn't work, or if this seems like a mistake, let your RA know!",
-                ephemeral=True
-            )
-        return
 
     Log.info(f"Starting verify for {author.name}[{author.id}]")
 
@@ -468,8 +445,6 @@ async def verify(ctx):
             await ctx.response.send_message(
                 "You're already verified! Congrats 🎉", ephemeral=True
             )
-            if author.id in actively_verifying:
-                actively_verifying.remove(author.id)
             return
 
     if author.id in user_to_guild:
@@ -482,8 +457,6 @@ async def verify(ctx):
             "We weren't able to figure out which server you were trying to verify for. Press the green 'verify' button inside the server's `#verify` channel.",
             ephemeral=True,
         )
-        if author.id in actively_verifying:
-            actively_verifying.remove(author.id)
         return
 
     # Get invite snapshot ASAP after guild is determined
@@ -506,8 +479,6 @@ async def verify(ctx):
         await ctx.response.send_message(
             f"It doesn't look like we could verify that you are in the server {guild.name}. Press the green 'verify' button inside the server's `#verify` channel.",
         )
-        if author.id in actively_verifying:
-            actively_verifying.remove(author.id)
         return
 
     verified = False
@@ -541,8 +512,6 @@ async def verify(ctx):
                             content=f"Databased invite '{inv_object.code}' did not return a role to assign to {member.name}[{member.id}]. This is an error."
                         )
                     # Abort
-                    if author.id in actively_verifying:
-                        actively_verifying.remove(author.id)
                     return
     else:
 
@@ -616,8 +585,6 @@ async def verify(ctx):
                                     content=f"Databased invite '{inv_object.code}' did not return a role to assign to {member.name}[{member.id}]. This is an error."
                                 )
                             # Abort
-                            if author.id in actively_verifying:
-                                actively_verifying.remove(author.id)
                             return
 
             elif num_overlap > 1:
@@ -688,8 +655,6 @@ async def verify(ctx):
                 )
 
                 # Bail
-                if author.id in actively_verifying:
-                    actively_verifying.remove(author.id)
                 return
 
             else:
@@ -708,8 +673,6 @@ async def verify(ctx):
                     ephemeral=True,
                 )
                 # Abort
-                if author.id in actively_verifying:
-                    actively_verifying.remove(author.id)
                 return
 
         else:
@@ -732,8 +695,6 @@ async def verify(ctx):
                 Log.error(
                     f"Failed to associate invite to role for user {member.name}[{member.id}], aborting and dumping: {override_user_to_code=}"
                 )
-                if author.id in actively_verifying:
-                    actively_verifying.remove(author.id)
                 return
             if invite_code in invite_to_role:
                 role = invite_to_role[invite_code]
@@ -776,8 +737,6 @@ async def verify(ctx):
                         await ctx.response.send_message(
                             f"The invite link '{invite_code}' couldn't associate you with a specific community, please let your RA know!",
                         )
-                        if author.id in actively_verifying:
-                            actively_verifying.remove(author.id)
                         return
                 else:
                     Log.error(
@@ -786,8 +745,6 @@ async def verify(ctx):
                     await ctx.response.send_message(
                         f"The invite link '{invite_code}' couldn't associate you with a specific community, please let your RA know!",
                     )
-                    if author.id in actively_verifying:
-                        actively_verifying.remove(author.id)
                     return
 
     # Begin ACTUAL VERIFICATION
@@ -1286,10 +1243,7 @@ async def lookup(ctx, member: discord.Option(discord.Member, "User to lookup")):
     description="Manually drop a user from the database/remove them from verification list."
 )
 @discord.ext.commands.has_permissions(administrator=True)
-async def reset_user(ctx, member: discord.Option(discord.Member, "Member to reset")):
-    if member.id in actively_verifying:
-        actively_verifying.remove(member.id)
-        
+async def reset_user(ctx, member: discord.Option(discord.Member, "Member to reset")):        
     try:
         user_count = session.query(DbUser).filter_by(ID=member.id).delete()
     except:
@@ -1386,9 +1340,6 @@ async def auto_link(ctx):
 
 @bot.user_command(name="Reset User")
 async def ctx_reset_user(ctx, member: discord.Member):
-    if member.id in actively_verifying:
-        actively_verifying.remove(member.id)
-    
     try:
         user_count = session.query(DbUser).filter_by(ID=member.id).delete()
     except:
