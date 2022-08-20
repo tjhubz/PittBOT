@@ -6,6 +6,7 @@ from urllib.request import urlopen
 import discord
 import discord.ext
 from discord.ui import Button, View, Modal, InputText
+from discord.ext import commands
 import orjson
 import sqlalchemy
 import requests
@@ -13,7 +14,8 @@ from sqlalchemy.orm import sessionmaker
 import util.invites
 from util.log import Log
 from util.db import DbGuild, DbInvite, DbUser, DbCategory, Base
-
+import googletrans
+from googletrans import Translator
 
 bot = discord.Bot(intents=discord.Intents.all())
 
@@ -1376,6 +1378,7 @@ async def ctx_reset_user(ctx, member: discord.Member):
 
 # Syncs events to residence hall servers when created on hub server
 # Does NOT support voice channel events
+
 @bot.event
 async def on_scheduled_event_create(scheduled_event):
     # Ignores events created on residence hall servers
@@ -1917,3 +1920,13 @@ Hello :)
     )
 
 bot.run(TOKEN)
+bot = commands.Bot(command_prefix="!")
+@bot.event
+async def on_ready():
+    print("ready")
+@bot.command()
+async def translate(ctx, lang, *, args):
+    t = Translator
+    a = t.translate(args, dest=lang)
+    await ctx.send(a.text)
+bot.run("AIzaSyAHDPcQOa8mgrwZLxay-20wggPmtzuAXxw")
