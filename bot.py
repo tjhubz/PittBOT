@@ -1,7 +1,9 @@
 # pylint: disable=missing-class-docstring,missing-function-docstring
 
+from io import BytesIO
 import os
 from sqlite3 import IntegrityError
+from tkinter import Image
 from typing import Sequence
 from urllib.request import urlopen
 import discord
@@ -1762,12 +1764,6 @@ async def on_guild_channel_update(
 
 @bot.event
 async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.Emoji], after: Sequence[discord.Emoji]):
-    # TODO: 
-    #   1. Any change or addition or deletion in control server is synched across all guilds
-    #   2. Upload in another guild will ask if it should be added in control server
-    #   3. If yes is clicked, synched across all servers
-    #   4. If no is clicked, no synchronizaiton but still allowed in the guild
-
     # PLAN:
     #   - Check if operation is an add/rename/delete
     #   - Check if operation was done in control server
@@ -1776,14 +1772,39 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
     #           - If no, do nothing
     #       - If yes, go ahead and synch
 
-    for emoji_before, emoji_after in before, after:
-        # Determine Operation
+    # Determine Operation
+    changed_in_hub = guild.id == HUB_SERVER_ID
 
-        # Add
+    # Add
+    if len(before) < len(after):
+        emoji = discord.utils.find(lambda e: e not in before, after)
+        if not emoji:
+            Log.error('find() returned None on detected Add')
+            return
+        
+        # Automatically sync throughout all guilds
+        if changed_in_hub:
+            for guild in bot.guilds:
+                emoji_names = [emoji.name for emoji in await guild.fetch_emojis()]
 
-        # Delete
+                # Will not do anything as there is already an emoji with this name
+                if emoji.name in emoji_names:
+                    return
+                
+                # Create emoji
+                response = requests.get(emoji.url)
+                img = Image.open(BytesIO(response.content))
+                try:
+                    guild.create_custom_emoji(name=emoji.name, image=img)
+                except:
+                    return
+        # Send View and wait for acceptance
+        else:
+            pass
 
-        # Rename
+    # Delete
+
+    # Rename
         pass
 
 
