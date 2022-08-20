@@ -25,7 +25,7 @@ https://www.maskup.pitt.edu/residence-life/
 If you are interested in contributing, see [CONTRIBUTING.md](CONTRIBUTING.md) to get started, and [join the Discord][discord-link]!
 
 ### Current Goals
-Check out the [issues][https://github.com/tjhubz/PittBOT/issues] to see what needs to be worked on. As we move through those features, if you think the bot could use a new feature, feel free to [join the Discord][discord-link] and let us know!
+Check out the [issues](https://github.com/tjhubz/PittBOT/issues) to see what needs to be worked on. As we move through those features, if you think the bot could use a new feature, feel free to [join the Discord][discord-link] and let us know!
 
 [discord-link]: https://discord.gg/JDQTkTw3Ek
 

@@ -77,19 +77,17 @@ async def make_categories(
             try:
                 # Split on comma and parse first/last out
                 names = ra_line.split(",")
-                first_name = names[1]
-                last_name = names[0]
+                first_name = names[1].rstrip()
             except IndexError:
                 # If there is no second item in the split (there was only one name)
                 # then use the whole line (minus ',') as the name
-                first_name = last_name = ra_line.replace(",", "")
+                first_name = ra_line.strip().replace(",", "")
         else:
             try:
                 names = ra_line.split(" ")
-                first_name = names[1]
-                last_name = names[0]
+                first_name = names[1].rstrip()
             except IndexError:
-                first_name = last_name = ra_line
+                first_name = ra_line.strip()
 
         # Create the RA's category
         category = await guild.create_category(
@@ -119,9 +117,7 @@ async def make_categories(
             landing_channel.guild.categories, name="building"
         )
 
-        info_category = discord.utils.get(
-            landing_channel.guild.categories, name="info"
-        )
+        info_category = discord.utils.get(landing_channel.guild.categories, name="info")
 
         ras_with_links.append(f"{ra_line} : {invite.url}\n")
 
@@ -143,14 +139,18 @@ async def make_categories(
                 new_role, read_messages=True, view_channel=True
             )
         else:
-            Log.warning(f"Guild {guild.name}[{guild.id}] does not have a category named 'building'")
-        
+            Log.warning(
+                f"Guild {guild.name}[{guild.id}] does not have a category named 'building'"
+            )
+
         if info_category:
             await info_category.set_permissions(
                 new_role, read_messages=True, view_channel=True
             )
         else:
-            Log.warning(f"Guild {guild.name}[{guild.id}] does not have a category named 'info'")
+            Log.warning(
+                f"Guild {guild.name}[{guild.id}] does not have a category named 'info'"
+            )
 
         # Build associations
         # TODO: Should this associate to the entire object, or just to ID?
