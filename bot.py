@@ -58,6 +58,7 @@ with open("config.json", "r") as config:
     # This is a path to the database RELATIVE to THIS (bot.py) file.
     DATABASE_PATH = data["database_path"] or "dbs/test.db"
 
+os.makedirs(os.path.dirname(DATABASE_PATH),exist_ok=True)
 # Database initialization
 db = sqlalchemy.create_engine(f"sqlite:///{DATABASE_PATH}")
 # Database session init
@@ -135,6 +136,7 @@ class VerifyModal(Modal):
                 "Only @pitt.edu emails will be accepted. Please retry by pressing the green button.",
                 ephemeral=True,
             )
+        self.stop()  
 
     async def on_timeout(self):
         self.stop()
@@ -625,6 +627,9 @@ async def verify(ctx):
 
     # You have to actually await on_timeout, so I'm not sure what to do if the timeout fails.
     await modal.wait()
+    
+    # TODO: All of the code below this line should be moved to inside of the modal callback. 
+    # We should not be jumping between interactions
 
     if member.id in user_to_email:
         email = user_to_email[member.id]
@@ -1033,6 +1038,7 @@ async def set_user(
     role: discord.Option(discord.Role, "Role to assign"),
     email: discord.Option(str, "Email address"),
     is_ra: discord.Option(bool, "Is user an RA or not?"),
+    nickname: discord.Option(str, "Preferred name to assign user", required=False),
 ):
 
     if not role:
@@ -1060,8 +1066,11 @@ async def set_user(
         pitt_id = email[: email.find("@pitt.edu")]
     else:
         pitt_id = email
-
-    await member.edit(nick=pitt_id)
+        
+    if nickname:
+        await member.edit(nick=nickname)
+    else:
+        await member.edit(nick=pitt_id)
 
     if is_ra:
         ra_role = discord.utils.get(ctx.guild.roles, name="RA")
