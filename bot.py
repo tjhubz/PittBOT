@@ -1751,6 +1751,32 @@ async def on_guild_channel_update(
                 f"Category {before.id} was updated but is not associated with a role in cache. This could be an error."
             )
 
+@bot.event
+async def on_guild_emojis_update(guild, before, after):
+    # TODO: 
+    #   1. Any change or addition or deletion in control server is synched across all guilds
+    #   2. Upload in another guild will ask if it should be added in control server
+    #   3. If yes is clicked, synched across all servers
+    #   4. If no is clicked, no synchronizaiton but still allowed in the guild
+
+    # PLAN:
+    #   - Check if operation is an add/rename/delete
+    #   - Check if operation was done in control server
+    #       - If not, ask control server if synching should be done
+    #           - If yes, sync
+    #           - If no, do nothing
+    #       - If yes, go ahead and synch
+
+    for emoji_before, emoji_after in before, after:
+        # Determine Operation
+
+        # Add
+
+        # Delete
+
+        # Rename
+        pass
+
 
 @bot.event
 async def on_ready():
