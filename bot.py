@@ -1037,6 +1037,7 @@ async def set_user(
     role: discord.Option(discord.Role, "Role to assign"),
     email: discord.Option(str, "Email address"),
     is_ra: discord.Option(bool, "Is user an RA or not?"),
+    nickname: discord.Option(str, "Preferred name to assign user", required=False),
 ):
 
     if not role:
@@ -1064,8 +1065,11 @@ async def set_user(
         pitt_id = email[: email.find("@pitt.edu")]
     else:
         pitt_id = email
-
-    await member.edit(nick=pitt_id)
+        
+    if nickname:
+        await member.edit(nick=nickname)
+    else:
+        await member.edit(nick=pitt_id)
 
     if is_ra:
         ra_role = discord.utils.get(ctx.guild.roles, name="RA")
