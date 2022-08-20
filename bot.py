@@ -90,6 +90,9 @@ user_to_guild = {}
 # Cache of user IDs to their pitt email addresses
 user_to_email = {}
 
+# Cache of user IDs to their preferred nicknames
+user_to_nickname = {}
+
 # Cache of user IDs to overriden invite codes
 # used to skip checks if verify is called by the dropdown view in the
 # case of a possible race condition
@@ -106,10 +109,16 @@ class VerifyModal(Modal):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.add_item(InputText(label="Pitt Email Address"))
+        # self.children[0]
+        self.add_item(InputText(label="Pitt Email Address",placeholder="abc123@pitt.edu")) 
+        # self.children[1]
+        self.add_item(InputText(label="Preferred Name",required=False,placeholder="Preferred name")) 
 
     async def callback(self, interaction: discord.Interaction):
         user_to_email[interaction.user.id] = self.children[0].value
+        if self.children[1].value:
+            user_to_nickname[interaction.user.id] = self.children[1].value
+            Log.info(f"User {interaction.user.name}[{interaction.user.id}] set their preferred nickname to '{self.children[1].value}'")
         if "@pitt.edu" in self.children[0].value:
             await interaction.response.send_message(
                 f"Welcome {interaction.user.mention}! Thank you for verifying. You can now exit this channel. Check out the channels on the left! If you are on mobile, click the three lines in the top left.",
@@ -591,8 +600,12 @@ async def verify(ctx):
     if "@pitt.edu" not in email:
         return
 
-    # Set the user's nickname to their email address on successful verification
-    nickname = email[: email.find("@pitt.edu")]
+    # Set the user's nickname to their email address or preferred name on successful verification
+    if member.id in user_to_nickname:
+        nickname = user_to_nickname[member.id]
+    else:
+        nickname = email[: email.find("@pitt.edu")]
+        
     await member.edit(nick=nickname)
 
     # Send message in logs channel when they successfully verify
@@ -682,12 +695,16 @@ async def verify(ctx):
     invites_cache[guild.id] = invites_now
 
     # Unset caches used for verification
-    del user_to_email[member.id]
-    del user_to_guild[member.id]
+    if member.id in user_to_email:
+        del user_to_email[member.id]
+    if member.id in user_to_guild:
+        del user_to_guild[member.id]
     if member.id in override_user_to_code:
         del override_user_to_code[member.id]
     if member.id in user_to_invite:
         del user_to_invite[member.id]
+    if member.id in user_to_nickname:
+        del user_to_nickname[member.id]
     session.commit()
 
 
