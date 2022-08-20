@@ -135,6 +135,7 @@ class VerifyModal(Modal):
                 "Only @pitt.edu emails will be accepted. Please retry by pressing the green button.",
                 ephemeral=True,
             )
+        self.stop()  
 
     async def on_timeout(self):
         self.stop()
@@ -625,6 +626,9 @@ async def verify(ctx):
 
     # You have to actually await on_timeout, so I'm not sure what to do if the timeout fails.
     await modal.wait()
+    
+    # TODO: All of the code below this line should be moved to inside of the modal callback. 
+    # We should not be jumping between interactions
 
     if member.id in user_to_email:
         email = user_to_email[member.id]
