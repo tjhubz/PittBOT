@@ -2,6 +2,7 @@
 
 import os
 from sqlite3 import IntegrityError
+from typing import Sequence
 from urllib.request import urlopen
 import discord
 import discord.ext
@@ -172,6 +173,14 @@ class CommunitySelectView(discord.ui.View):
             choices=self.opts, opts_to_inv=opts_to_inv
         )
         self.add_item(select_menu)
+
+class EmojiSyncView(discord.ui.View):
+    def __init__(self, emoji, mod_type, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        accept = Button(label='Accept', style=discord.ButtonStyle.green)
+        deny = Button(label='Deny', style=discord.ButtonStyle.red)
+        self.add_item(accept)
+        self.add_item(deny)
 
 
 class UnsetupConfirmation(discord.ui.Modal):
@@ -1752,7 +1761,7 @@ async def on_guild_channel_update(
             )
 
 @bot.event
-async def on_guild_emojis_update(guild, before, after):
+async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.Emoji], after: Sequence[discord.Emoji]):
     # TODO: 
     #   1. Any change or addition or deletion in control server is synched across all guilds
     #   2. Upload in another guild will ask if it should be added in control server
