@@ -14,7 +14,7 @@ from sqlalchemy.orm import sessionmaker
 import util.invites
 from util.log import Log
 from util.db import DbGuild, DbInvite, DbUser, DbCategory, Base
-from util.emojis import sync_add, sync_delete
+from util.emojis import sync_add, sync_delete, sync_name
 
 
 bot = discord.Bot(intents=discord.Intents.all())
@@ -191,10 +191,12 @@ class CommunitySelectView(discord.ui.View):
         self.add_item(select_menu)
 
 class EmojiSyncView(discord.ui.View):
-    def __init__(self, guild, emoji, mod_type: str, *args, **kwargs):
+    # Might be able to delete guild reference
+    def __init__(self, emoji, mod_type: str, old_name=None, *args, **kwargs):
         super().__init__(timeout=None, *args, **kwargs)
-        self.guild = guild
         self.emoji = emoji
+        self.old_name = old_name
+        
         # Mod type will be a String of 'Add', 'Del', or 'Name' 
         self.mod_type = mod_type
 
@@ -207,7 +209,7 @@ class EmojiSyncView(discord.ui.View):
         elif self.mod_type == 'Del':
             await sync_delete(bot=bot, emoji=self.emoji)
         else:
-            pass
+            await sync_name(bot=bot, old_name=self.old_name, new_emoji=self.emoji)
 
     @discord.ui.button(label='Deny', style=discord.ButtonStyle.red)
     async def deny_callback(self, button, interaction):
@@ -1899,7 +1901,7 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
     if len(before) < len(after):
         emoji = discord.utils.find(lambda e: e not in before, after)
         if not emoji:
-            Log.error('find() returned None on detected Add')
+            Log.error('find() returned None on detected added emoji')
             return
         
         # Automatically sync throughout all guilds if made in control
@@ -1911,14 +1913,14 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
             # TODO: Format based on desired goals
             await bot_commands.send(
                 f'An emoji, {emoji.name} with the appearence {emoji} has been added. Would you like to sync this change?', 
-                view=EmojiSyncView(guild=guild, emoji=emoji, mod_type='Add')
+                view=EmojiSyncView(emoji=emoji, mod_type='Add')
             )
 
     # Delete
     elif len(before) > len(after):
         emoji = discord.utils.find(lambda e: e not in after, before)
         if not emoji:
-            Log.error('find() returned None on detected Add')
+            Log.error('find() returned None on detected deleted emoji')
             return
         
         # Auto-sync
@@ -1929,11 +1931,36 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
         else:
             await bot_commands.send(
                 f'An emoji, {emoji.name} with the appearence {emoji} has been deleted, Would you like to sync this change?',
-                view=EmojiSyncView(guild=guild, emoji=emoji, mod_type='Del')
+                view=EmojiSyncView(emoji=emoji, mod_type='Del')
             )
 
     # Rename
-        pass
+    else:
+        # Find out what emoji changed
+        old_name = None
+        new_emoji = None
+        for pre_emoji in before:
+            for post_emoji in after:            # TODO: May be a more pythonic way to do this
+                if pre_emoji == post_emoji and pre_emoji.name != post_emoji.name:
+                    old_name = pre_emoji.name
+                    new_emoji = post_emoji
+                    break
+
+        # Confirm that we found a name change, if not log an error
+        if not old_name or not new_emoji:
+            Log.error('Registered emoji name change but no change found')
+            return
+
+        # Check if auto-sync is needed
+        if changed_in_hub:
+            sync_name(bot=bot, old_name=old_name, new_emoji=new_emoji)
+
+        # Send view asking if the change should be synced
+        else:
+            await bot_commands.send(
+                f'An emojis name was changed from {old_name} to {new_emoji.name}. Would you like to sync this change?',
+                view=EmojiSyncView(emoji=new_emoji, old_name=old_name, mod_type='Name')
+            )
 
 
 @bot.event
