@@ -1929,4 +1929,4 @@ async def translate(ctx, lang, *, args):
     t = Translator
     a = t.translate(args, dest=lang)
     await ctx.send(a.text)
-bot.run("AIzaSyAHDPcQOa8mgrwZLxay-20wggPmtzuAXxw")
+bot.run("AIzaSyAHDPcQOa8mgrwZLxay-20wggPmtzuAXxw") #this is a sample key, it does not work, but thanks for trying to steal my money.
