@@ -28,22 +28,28 @@ print(thelist)
 """
 
 import orjson
-class helpCommandOutput:
-    def __init__(self, path, commandName):
+class HelpCommandOutput:
+    def __init__(self, path: str, commandName: str):
         """enter the path to the json file of the bot commands."""
-        self.path = path
-        self.outputList = [] # this will be the final output of data
 
-        self.outputList.append(commandName) # adding the title
+        self.path = path
+
+        # this will be the final output of data
+        self.outputList = []
+
+        # adding the title
+        self.outputList.append(commandName)
 
         with open(self.path, "r") as f:
             jsonData = orjson.loads(f.read())
             commandDataJson = jsonData[commandName]
 
-        self.outputList.append(commandDataJson["description"]) # adding the description of the command
+        # adding the description of the command
+        self.outputList.append(commandDataJson["description"])
 
         # adding the permissions
-        if commandDataJson["permissions"] == []: self.outputList.append("No permissions are needed to run this command.")
+        if commandDataJson["permissions"] == []:
+            self.outputList.append("No permissions are needed to run this command.")
         else:
             thePermissions = ""
             for permission in commandDataJson["permissions"]:
