@@ -12,7 +12,7 @@ import requests
 from sqlalchemy.orm import sessionmaker
 import util.invites
 from util.log import Log
-from util.db import DbGuild, DbInvite, DbUser, DbCategory, Base
+from util.db import DbGuild, DbInvite, DbUser, DbCategory, DbVerifyingUser, Base
 
 
 bot = discord.Bot(intents=discord.Intents.all())
@@ -358,6 +358,15 @@ class CommunitySelectDropdown(discord.ui.Select):
     async def callback(self, interaction: discord.Interaction):
         override_user_to_code[interaction.user.id] = self.opts_to_inv[self.values[0]]
         user_to_invite[interaction.user.id] = self.opts_to_inv[self.values[0]]
+        # Add row to database
+        verifying_data = DbVerifyingUser(ID=interaction.user.id, invite_code=user_to_invite[interaction.user.id])
+        
+        session.merge(verifying_data)
+        try:
+            session.commit()
+        except:
+            Log.error(f"Couldn't add {interaction.userber.name}[{interaction.user.id}] to VerifyingUsers database.")
+            
         Log.ok(f"{override_user_to_code=}")
         await verify(interaction)
 
@@ -505,9 +514,46 @@ async def verify(ctx):
     verified = False
 
     assigned_role = None
+    
+    try:
+        verifying_user = session.query(DbVerifyingUser).filter_by(ID=member.id).one()
+        invite = next(
+            filter(lambda inv: inv.code == verifying_user.invite_code, old_invites), 
+            None
+        )
+    except:
+        verifying_user = None
 
     if member.id in user_to_invite:
         invite = user_to_invite[member.id]
+        if invite.code in invite_to_role:
+            assigned_role = invite_to_role[invite.code]
+            Log.ok(
+                f"Invite link {invite.code} is cached with '{assigned_role}', assigning this role."
+            )
+        else:
+            try:
+                inv_object = session.query(DbInvite).filter_by(code=invite.code).one()
+            except Exception:
+                inv_object = None
+
+            if inv_object:
+                assigned_role = discord.utils.get(guild.roles, id=inv_object.role_id)
+                if not assigned_role:
+                    await ctx.response.send_message(
+                        "We couldn't find a role to give you, ask your RA for help!"
+                    )
+                    Log.error(
+                        f"Databased invite '{inv_object.code}' did not return a role to assign to {member.name}[{member.id}]. This is an error."
+                    )
+                    if logs_channel:
+                        await logs_channel.send(
+                            content=f"Databased invite '{inv_object.code}' did not return a role to assign to {member.name}[{member.id}]. This is an error."
+                        )
+                    # Abort
+                    return
+                
+    elif verifying_user and invite:
         if invite.code in invite_to_role:
             assigned_role = invite_to_role[invite.code]
             Log.ok(
@@ -1706,7 +1752,14 @@ async def on_member_join(member: discord.Member):
     if num_overlap == 1:
         invite = potential_invites[0]
         user_to_invite[member.id] = invite
-
+        # Add row to database
+        verifying_data = DbVerifyingUser(ID=member.id, invite_code=invite.code)
+        
+        session.merge(verifying_data)
+        try:
+            session.commit()
+        except:
+            Log.error(f"Couldn't add {member.name}[{member.id}] to VerifyingUsers database.")
     elif num_overlap > 1:
         # Code for potential overlap
         options = []
@@ -1732,7 +1785,7 @@ async def on_member_join(member: discord.Member):
                     role = discord.utils.get(member.guild.roles, id=inv_object.role_id)
                     if role:
                         Log.ok(
-                            f"Databased invite '{inv.code}' returned a valid role '{role.name}', assigning this role."
+                            f"Databased invite '{inv.code}' returned a valid role '{role.name}', adding this role to manual select."
                         )
                         options.append(role.name)
                         options_to_inv[role.name] = inv
