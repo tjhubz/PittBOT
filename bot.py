@@ -359,14 +359,18 @@ class CommunitySelectDropdown(discord.ui.Select):
         override_user_to_code[interaction.user.id] = self.opts_to_inv[self.values[0]]
         user_to_invite[interaction.user.id] = self.opts_to_inv[self.values[0]]
         # Add row to database
-        verifying_data = DbVerifyingUser(ID=interaction.user.id, invite_code=user_to_invite[interaction.user.id])
-        
+        verifying_data = DbVerifyingUser(
+            ID=interaction.user.id, invite_code=user_to_invite[interaction.user.id]
+        )
+
         session.merge(verifying_data)
         try:
             session.commit()
         except:
-            Log.error(f"Couldn't add {interaction.userber.name}[{interaction.user.id}] to VerifyingUsers database.")
-            
+            Log.error(
+                f"Couldn't add {interaction.userber.name}[{interaction.user.id}] to VerifyingUsers database."
+            )
+
         Log.ok(f"{override_user_to_code=}")
         await verify(interaction)
 
@@ -514,12 +518,12 @@ async def verify(ctx):
     verified = False
 
     assigned_role = None
-    
+
     try:
         verifying_user = session.query(DbVerifyingUser).filter_by(ID=member.id).one()
         invite = next(
-            filter(lambda inv: inv.code == verifying_user.invite_code, old_invites), 
-            None
+            filter(lambda inv: inv.code == verifying_user.invite_code, old_invites),
+            None,
         )
     except:
         verifying_user = None
@@ -552,7 +556,7 @@ async def verify(ctx):
                         )
                     # Abort
                     return
-                
+
     elif verifying_user and invite:
         if invite.code in invite_to_role:
             assigned_role = invite_to_role[invite.code]
@@ -1310,21 +1314,57 @@ async def lookup(ctx, member: discord.Option(discord.Member, "User to lookup")):
     description="Manually drop a user from the database/remove them from verification list."
 )
 @discord.ext.commands.has_permissions(administrator=True)
-async def reset_user(ctx, member: discord.Option(discord.Member, "Member to reset")):
+async def reset_user(
+    ctx,
+    member: discord.Option(discord.Member, "Member to reset"),
+    drop_invite_code: discord.Option(
+        bool,
+        "Whether to erase association with invite code",
+        required=False,
+        default=False,
+    ),
+):
     try:
         user_count = session.query(DbUser).filter_by(ID=member.id).delete()
     except:
-        user_count = None
+        user_count = 0
         await ctx.respond(
             f"User ID did not return a database row or could not be deleted: {member.id}",
             ephemeral=True,
         )
         return
 
+    if drop_invite_code:
+        try:
+            verifying_user_count = (
+                session.query(DbVerifyingUser).filter_by(ID=member.id).delete()
+            )
+        except:
+            verifying_user_count = 0
+            await ctx.respond(
+                f"User ID did not return a database row for VerifyingUsers or could not be deleted: {member.id}",
+                ephemeral=True,
+            )
+            return
+
     session.commit()
 
     if user_count > 0:
-        await ctx.respond(f"Dropped row for user with ID: {member.id}", ephemeral=True)
+        if verifying_user_count > 0:
+            await ctx.respond(
+                f"Dropped row for user with ID in both table Users and table VerifyingUsers: {member.id}",
+                ephemeral=True,
+            )
+        else:
+            await ctx.respond(
+                f"Dropped row for user with ID in table Users: {member.id}",
+                ephemeral=True,
+            )
+    elif verifying_user_count > 0:
+        await ctx.respond(
+            f"Dropped row for user with ID in table VerifyingUsers: {member.id}",
+            ephemeral=True,
+        )
     else:
         await ctx.respond(
             f"No database row exists for user {member.name}[{member.id}], nothing to drop.",
@@ -1469,7 +1509,7 @@ async def auto_link(ctx):
 # ------------------------------- CONTEXT MENU COMMANDS -------------------------------
 
 
-@bot.user_command(name="Reset User")
+@bot.user_command(name="Reset")
 @discord.ext.commands.has_permissions(administrator=True)
 async def ctx_reset_user(ctx, member: discord.Member):
     try:
@@ -1485,7 +1525,57 @@ async def ctx_reset_user(ctx, member: discord.Member):
     session.commit()
 
     if user_count > 0:
-        await ctx.respond(f"Dropped row for user with ID: {member.id}", ephemeral=True)
+        await ctx.respond(f"Dropped row for user with ID in table Users: {member.id}", ephemeral=True)
+    else:
+        await ctx.respond(
+            f"No database row exists in table Users for user {member.name}[{member.id}], nothing to drop.",
+            ephemeral=True,
+        )
+
+
+@bot.user_command(name="Reset and Drop Invite")
+@discord.ext.commands.has_permissions(administrator=True)
+async def ctx_reset_user_drop(ctx, member: discord.Member):
+    try:
+        user_count = session.query(DbUser).filter_by(ID=member.id).delete()
+    except:
+        user_count = 0
+        await ctx.respond(
+            f"User ID did not return a database row or could not be deleted: {member.id}",
+            ephemeral=True,
+        )
+        return
+
+    try:
+        verifying_user_count = (
+            session.query(DbVerifyingUser).filter_by(ID=member.id).delete()
+        )
+    except:
+        verifying_user_count = 0
+        await ctx.respond(
+            f"User ID did not return a database row for VerifyingUsers or could not be deleted: {member.id}",
+            ephemeral=True,
+        )
+        return
+
+    session.commit()
+
+    if user_count > 0:
+        if verifying_user_count > 0:
+            await ctx.respond(
+                f"Dropped row for user with ID in both table Users and table VerifyingUsers: {member.id}",
+                ephemeral=True,
+            )
+        else:
+            await ctx.respond(
+                f"Dropped row for user with ID in table Users: {member.id}",
+                ephemeral=True,
+            )
+    elif verifying_user_count > 0:
+        await ctx.respond(
+            f"Dropped row for user with ID in table VerifyingUsers: {member.id}",
+            ephemeral=True,
+        )
     else:
         await ctx.respond(
             f"No database row exists for user {member.name}[{member.id}], nothing to drop.",
@@ -1754,12 +1844,14 @@ async def on_member_join(member: discord.Member):
         user_to_invite[member.id] = invite
         # Add row to database
         verifying_data = DbVerifyingUser(ID=member.id, invite_code=invite.code)
-        
+
         session.merge(verifying_data)
         try:
             session.commit()
         except:
-            Log.error(f"Couldn't add {member.name}[{member.id}] to VerifyingUsers database.")
+            Log.error(
+                f"Couldn't add {member.name}[{member.id}] to VerifyingUsers database."
+            )
     elif num_overlap > 1:
         # Code for potential overlap
         options = []
@@ -1923,9 +2015,8 @@ async def on_guild_channel_update(
     before: discord.abc.GuildChannel, after: discord.abc.GuildChannel
 ):
     # We only want to handle category channel name updates
-    if (
-        isinstance(before, discord.CategoryChannel)
-        and isinstance(after, discord.CategoryChannel)
+    if isinstance(before, discord.CategoryChannel) and isinstance(
+        after, discord.CategoryChannel
     ):
 
         # Check that this category was actually associated with a role.
