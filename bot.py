@@ -14,7 +14,7 @@ from sqlalchemy.orm import sessionmaker
 import util.invites
 from util.log import Log
 from util.db import DbGuild, DbInvite, DbUser, DbCategory, Base
-from util.emojis import sync_add
+from util.emojis import sync_add, sync_delete
 
 
 bot = discord.Bot(intents=discord.Intents.all())
@@ -203,9 +203,9 @@ class EmojiSyncView(discord.ui.View):
         await interaction.response.send_message('Okay! I will sync this now')
         
         if self.mod_type == 'Add':
-            await sync_add(bot=bot, guild=self.guild, emoji=self.emoji)
+            await sync_add(bot=bot, emoji=self.emoji)
         elif self.mod_type == 'Del':
-            pass
+            await sync_delete(bot=bot, emoji=self.emoji)
         else:
             pass
 
@@ -1888,9 +1888,12 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
     #           - If yes, sync
     #           - If no, do nothing
     #       - If yes, go ahead and synch
+    bot_commands = bot.get_channel(BOT_COMMANDS_ID)
 
-    # Determine Operation
+    # Determine if change was made in control server
     changed_in_hub = guild.id == HUB_SERVER_ID
+
+    # Determine operation and execute
 
     # Add
     if len(before) < len(after):
@@ -1901,18 +1904,33 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
         
         # Automatically sync throughout all guilds if made in control
         if changed_in_hub:
-            await sync_add(bot=bot, guild=guild, emoji=emoji)
+            await sync_add(bot=bot, emoji=emoji)
             
         # Send View and wait for acceptance or denial
         else:
-            bot_commands = bot.get_channel(BOT_COMMANDS_ID)
             # TODO: Format based on desired goals
             await bot_commands.send(
                 f'An emoji, {emoji.name} with the appearence {emoji} has been added. Would you like to sync this change?', 
-                view=EmojiSyncView(guild, emoji, 'Add')
+                view=EmojiSyncView(guild=guild, emoji=emoji, mod_type='Add')
             )
 
     # Delete
+    elif len(before) > len(after):
+        emoji = discord.utils.find(lambda e: e not in after, before)
+        if not emoji:
+            Log.error('find() returned None on detected Add')
+            return
+        
+        # Auto-sync
+        if changed_in_hub:
+            sync_delete(bot=bot, emoji=emoji)
+
+        # Send View and wait for acceptance or denial
+        else:
+            await bot_commands.send(
+                f'An emoji, {emoji.name} with the appearence {emoji} has been deleted, Would you like to sync this change?',
+                view=EmojiSyncView(guild=guild, emoji=emoji, mod_type='Del')
+            )
 
     # Rename
         pass

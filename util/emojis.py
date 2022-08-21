@@ -8,22 +8,49 @@ import discord
 import requests
 from util.log import Log
 
-
-async def sync_add(bot: discord.Bot, guild: discord.Guild, emoji: discord.Emoji):
+async def sync_add(bot: discord.Bot, emoji: discord.Emoji):
     for guild in bot.guilds:
-        emoji_names = [emoji.name for emoji in await guild.fetch_emojis()]
-
-        # Will not do anything as there is already an emoji with this name
-        if emoji.name in emoji_names:
-            return
+        # Check if this emoji already exists
+        guild_emojis = await guild.fetch_emojis()
+        exists = False
+        for guild_emoji in guild_emojis:
+            if guild_emoji.name == emoji.name:
+                exists = True
+                break
         
-        # Create emoji
+        # If the emoji exists, we can skip creation
+        if exists:
+            continue
 
-        # CAN DELETE AFTER TESTING read()
+        #### *CAN DELETE AFTER TESTING read()*
         # response = requests.get(emoji.url)
         # img = Image.open(BytesIO(response.content))
+
+        # Create emoji
         try:
             guild.create_custom_emoji(name=emoji.name, image=emoji.read())
             Log.ok(f'Emoji: {emoji.name} successfully added')
         except:
-            return
+            Log.warning(f'Could not create emoji {emoji.name} in {guild.name}')
+            continue
+
+async def sync_delete(bot: discord.Bot, emoji: discord.Emoji):
+    for guild in bot.guilds:
+        guild_emojis = guild.fetch_emojis()
+        del_emoji = None
+
+        # Check if the guild contains an emoji that matches this one
+        for guild_emoji in guild_emojis:
+            if guild_emoji.name == emoji.name:
+                del_emoji = guild_emoji
+                break
+
+        if del_emoji:
+            # Delete the emoji in the server if possible
+            # Could be forbidden to delete the emoji or get HTTP Exception
+            try:
+                del_emoji.delete()
+                Log.ok(f'Emoji: {emoji.name} in {guild.name} successfully deleted')
+            except:
+                Log.warning(f'Could not delete emoji {emoji.name} in {guild.name}')
+                continue
