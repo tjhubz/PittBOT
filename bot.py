@@ -1899,13 +1899,18 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
             Log.error('find() returned None on detected Add')
             return
         
-        # Automatically sync throughout all guilds
+        # Automatically sync throughout all guilds if made in control
         if changed_in_hub:
             await sync_add(bot=bot, guild=guild, emoji=emoji)
             
-        # Send View and wait for acceptance
+        # Send View and wait for acceptance or denial
         else:
-            pass
+            bot_commands = bot.get_channel(BOT_COMMANDS_ID)
+            # TODO: Format based on desired goals
+            await bot_commands.send(
+                f'An emoji, {emoji.name} with the appearence {emoji} has been added. Would you like to sync this change?', 
+                view=EmojiSyncView(guild, emoji, 'Add')
+            )
 
     # Delete
 

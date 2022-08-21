@@ -18,10 +18,12 @@ async def sync_add(bot: discord.Bot, guild: discord.Guild, emoji: discord.Emoji)
             return
         
         # Create emoji
-        response = requests.get(emoji.url)
-        img = Image.open(BytesIO(response.content))
+
+        # CAN DELETE AFTER TESTING read()
+        # response = requests.get(emoji.url)
+        # img = Image.open(BytesIO(response.content))
         try:
-            guild.create_custom_emoji(name=emoji.name, image=img)
+            guild.create_custom_emoji(name=emoji.name, image=emoji.read())
             Log.ok(f'Emoji: {emoji.name} successfully added')
         except:
             return
