@@ -1,9 +1,7 @@
 # pylint: disable=missing-class-docstring,missing-function-docstring
 
-from io import BytesIO
 import os
 from sqlite3 import IntegrityError
-from tkinter import Image
 from typing import Sequence
 from urllib.request import urlopen
 import discord
@@ -16,6 +14,7 @@ from sqlalchemy.orm import sessionmaker
 import util.invites
 from util.log import Log
 from util.db import DbGuild, DbInvite, DbUser, DbCategory, Base
+from util.emojis import sync_add
 
 
 bot = discord.Bot(intents=discord.Intents.all())
@@ -192,13 +191,28 @@ class CommunitySelectView(discord.ui.View):
         self.add_item(select_menu)
 
 class EmojiSyncView(discord.ui.View):
-    def __init__(self, emoji, mod_type, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        accept = Button(label='Accept', style=discord.ButtonStyle.green)
-        deny = Button(label='Deny', style=discord.ButtonStyle.red)
-        self.add_item(accept)
-        self.add_item(deny)
+    def __init__(self, guild, emoji, mod_type: str, *args, **kwargs):
+        super().__init__(timeout=None, *args, **kwargs)
+        self.guild = guild
+        self.emoji = emoji
+        # Mod type will be a String of 'Add', 'Del', or 'Name' 
+        self.mod_type = mod_type
 
+    @discord.ui.button(label='Accept', style=discord.ButtonStyle.green)
+    async def accept_callback(self, button, interaction: discord.Interaction):
+        await interaction.response.send_message('Okay! I will sync this now')
+        
+        if self.mod_type == 'Add':
+            await sync_add(bot=bot, guild=self.guild, emoji=self.emoji)
+        elif self.mod_type == 'Del':
+            pass
+        else:
+            pass
+
+    @discord.ui.button(label='Deny', style=discord.ButtonStyle.red)
+    async def deny_callback(self, button, interaction):
+        # Do nothing!
+        return
 
 class UnsetupConfirmation(discord.ui.Modal):
     def __init__(self, *args, **kwargs):
@@ -1887,20 +1901,8 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
         
         # Automatically sync throughout all guilds
         if changed_in_hub:
-            for guild in bot.guilds:
-                emoji_names = [emoji.name for emoji in await guild.fetch_emojis()]
-
-                # Will not do anything as there is already an emoji with this name
-                if emoji.name in emoji_names:
-                    return
-                
-                # Create emoji
-                response = requests.get(emoji.url)
-                img = Image.open(BytesIO(response.content))
-                try:
-                    guild.create_custom_emoji(name=emoji.name, image=img)
-                except:
-                    return
+            await sync_add(bot=bot, guild=guild, emoji=emoji)
+            
         # Send View and wait for acceptance
         else:
             pass
