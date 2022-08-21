@@ -58,7 +58,7 @@ with open("config.json", "r") as config:
     # This is a path to the database RELATIVE to THIS (bot.py) file.
     DATABASE_PATH = data["database_path"] or "dbs/test.db"
 
-os.makedirs(os.path.dirname(DATABASE_PATH),exist_ok=True)
+os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
 # Database initialization
 db = sqlalchemy.create_engine(f"sqlite:///{DATABASE_PATH}")
 # Database session init
@@ -114,50 +114,66 @@ class VerifyModal(Modal):
         super().__init__(*args, **kwargs)
 
         # self.children[0]
-        self.add_item(InputText(label="Pitt Email Address",placeholder="abc123@pitt.edu")) 
+        self.add_item(
+            InputText(label="Pitt Email Address", placeholder="abc123@pitt.edu")
+        )
         # self.children[1]
-        self.add_item(InputText(label="Preferred Name",required=False,placeholder="Preferred name")) 
+        self.add_item(
+            InputText(
+                label="Preferred Name", required=False, placeholder="Preferred name"
+            )
+        )
 
     async def callback(self, interaction: discord.Interaction):
         verified = False
         email = self.children[0].value
         if self.children[1].value:
             user_to_nickname[interaction.user.id] = self.children[1].value
-            Log.info(f"User {interaction.user.name}[{interaction.user.id}] set their preferred nickname to '{self.children[1].value}'")
+            Log.info(
+                f"User {interaction.user.name}[{interaction.user.id}] set their preferred nickname to '{self.children[1].value}'"
+            )
         if "@pitt.edu" in self.children[0].value:
-            Log.ok(f"{interaction.user.name} attempted to verify with email '{email}'. This email was not rejected.")
+            Log.ok(
+                f"{interaction.user.name} attempted to verify with email '{email}'. This email was not rejected."
+            )
             verified = True
         else:
-            Log.warning(f"{interaction.user.name} attempted to verify with email '{email}' but was denied")
+            Log.warning(
+                f"{interaction.user.name} attempted to verify with email '{email}' but was denied"
+            )
             await interaction.response.send_message(
                 "Only @pitt.edu emails will be accepted. Please retry by pressing the green button.",
                 ephemeral=True,
             )
             return
-        
+
         guild = interaction.guild
-        
+
         if not guild:
             if interaction.user.id in user_to_guild:
                 guild = user_to_guild[interaction.user.id]
             else:
-                Log.error(f"Verification modal was submitted by {interaction.user.name}[{interaction.user.id}] but was not associated with a guild.")
+                Log.error(
+                    f"Verification modal was submitted by {interaction.user.name}[{interaction.user.id}] but was not associated with a guild."
+                )
                 await interaction.response.send_message(
                     "We couldn't find out which server you wanted to verify for. Please retry by pressing the green button or typing `/verify` in the verify channel.",
                     ephemeral=True,
                 )
-        
+
         member = discord.utils.get(guild.members, id=interaction.user.id)
-        
+
         if not member:
             member = interaction.user
-            
+
         logs_channel = discord.utils.get(guild.channels, name="logs")
-        
+
         invite = user_to_assigned_invite[member.id]
-        
+
         if not invite:
-            Log.error(f"Verification modal was submitted by {interaction.user.name}[{interaction.user.id}] but was not associated with any invite.")
+            Log.error(
+                f"Verification modal was submitted by {interaction.user.name}[{interaction.user.id}] but was not associated with any invite."
+            )
             if logs_channel:
                 await logs_channel.send(
                     f"Verification modal was submitted by {interaction.user.name}[{interaction.user.id}] but was not associated with any invite."
@@ -166,11 +182,13 @@ class VerifyModal(Modal):
                 "We couldn't find out which invite link you used to join. Please retry by pressing the green button or typing `/verify` in the verify channel.",
                 ephemeral=True,
             )
-            
+
         assigned_role = user_to_assigned_role[member.id]
-        
+
         if not assigned_role:
-            Log.error(f"Verification modal was submitted by {interaction.user.name}[{interaction.user.id}] but was not associated with any assigned role.")
+            Log.error(
+                f"Verification modal was submitted by {interaction.user.name}[{interaction.user.id}] but was not associated with any assigned role."
+            )
             if logs_channel:
                 await logs_channel.send(
                     f"Verification modal was submitted by {interaction.user.name}[{interaction.user.id}] but was not associated with any assigned role."
@@ -185,13 +203,15 @@ class VerifyModal(Modal):
             nickname = user_to_nickname[member.id]
         else:
             nickname = email[: email.find("@pitt.edu")]
-            
+
         await member.edit(nick=nickname)
 
         # Send message in logs channel when they successfully verify
         Log.ok(f"Verified {member.name} with email '{email}'")
         if logs_channel:
-            await logs_channel.send(content=f"Verified {member.name} with email '{email}'")
+            await logs_channel.send(
+                content=f"Verified {member.name} with email '{email}'"
+            )
 
         # Need to give the member the appropriate role
         is_user_ra = False
@@ -245,7 +265,7 @@ class VerifyModal(Modal):
                 "The invite used couldn't associate you with a specific community, please let your RA know!",
             )
             return
-        
+
         await interaction.response.send_message(
             f"Welcome {interaction.user.mention}! Thank you for verifying. You can now exit this channel. Check out the channels on the left! If you are on mobile, click the three lines in the top left.",
             ephemeral=True,
@@ -297,7 +317,7 @@ class VerifyModal(Modal):
             del user_to_invite[member.id]
         if member.id in user_to_nickname:
             del user_to_nickname[member.id]
-        session.commit()  
+        session.commit()
 
         async def on_timeout(self):
             self.stop()
@@ -749,7 +769,7 @@ async def verify(ctx):
                     return
 
     # Begin ACTUAL VERIFICATION
-    
+
     user_to_assigned_invite[member.id] = invite
     user_to_assigned_role[member.id] = assigned_role
 
@@ -759,7 +779,7 @@ async def verify(ctx):
 
     # Keep this line actually, invites cache will get updated after it.
     await modal.wait()
-    
+
     # Update cache
     invites_cache[guild.id] = invites_now
 
@@ -1054,7 +1074,7 @@ async def set_user(
         pitt_id = email[: email.find("@pitt.edu")]
     else:
         pitt_id = email
-        
+
     if nickname:
         await member.edit(nick=nickname)
     else:
@@ -1179,7 +1199,7 @@ async def set_ra(
         try:
             await member.add_roles(
                 ra_role,
-                reason=f"Manual override",
+                reason="Manual override",
             )
         except discord.errors.Forbidden:
             await ctx.respond(
@@ -1244,7 +1264,7 @@ async def lookup(ctx, member: discord.Option(discord.Member, "User to lookup")):
     description="Manually drop a user from the database/remove them from verification list."
 )
 @discord.ext.commands.has_permissions(administrator=True)
-async def reset_user(ctx, member: discord.Option(discord.Member, "Member to reset")):        
+async def reset_user(ctx, member: discord.Option(discord.Member, "Member to reset")):
     try:
         user_count = session.query(DbUser).filter_by(ID=member.id).delete()
     except:
@@ -1264,6 +1284,70 @@ async def reset_user(ctx, member: discord.Option(discord.Member, "Member to rese
             f"No database row exists for user {member.name}[{member.id}], nothing to drop.",
             ephemeral=True,
         )
+
+
+@bot.slash_command(
+    description="Manually drop a user from the database/remove them from verification list."
+)
+@discord.ext.commands.has_permissions(administrator=True)
+async def prune_pending(ctx):
+    # Get logs channel
+    logs_channel = discord.utils.get(ctx.guild.channels, name="logs")
+
+    # Defer response due to slow operation
+    await ctx.defer(ephemeral=True)
+
+    # Iterate over members
+    num_pruned = 0
+    pruned = []
+    async for member in ctx.guild.fetch_members():
+        if len(member.roles) <= 1:
+            # Member will be pruned
+            Log.info(
+                f"Pruning member {member.name}[{member.id}] as they have one or fewer roles (@/everyone)"
+            )
+            if logs_channel:
+                await logs_channel.send(
+                    f"Pruning member {member.name}[{member.id}] as they have one or fewer roles (@/everyone)"
+                )
+
+            # Get DM channel
+            dm_channel = await member.create_dm()
+
+            # Kick member
+            try:
+                await member.kick(reason="Pruned for not initiating verification")
+            except discord.Forbidden:
+                Log.warning(
+                    f"Member {member.name}[{member.id}] cannot be kicked due to a permissions error."
+                )
+                continue
+
+            num_pruned += 1
+            pruned.append(member)
+
+            # Notify them
+            if dm_channel:
+                await dm_channel.send(
+                    f"Oh no! It looks like your verification period expired for the server {ctx.guild.name}. Please re-join with the invite your RA sent you and press the green verify button once you join."
+                )
+            else:
+                Log.warning(
+                    f"Member {member.name}[{member.id}] does not allow DMs or creating a DM failed, could not notify them of prune."
+                )
+                if logs_channel:
+                    await logs_channel.send(
+                        f"**WARNING**: Member {member.name}[{member.id}] does not allow DMs or creating a DM failed, could not notify them of prune."
+                    )
+
+    # Respond with ephemeral list of members pruned
+    message_content = f"**{num_pruned} members were pruned:**\n"
+
+    for mem in pruned:
+        message_content += f"{mem}\n"
+
+    # Reply with members pruned
+    await ctx.followup.send(content=message_content, ephemeral=True)
 
 
 @bot.slash_command(
@@ -1319,7 +1403,7 @@ async def auto_link(ctx):
     try:
         session.commit()
     except Exception:
-        Log.error(f"Couldn't merge any categories into to database.")
+        Log.error("Couldn't merge any categories into to database.")
         await ctx.respond(
             content="We couldn't merge any categories into the database.",
             ephemeral=True,
@@ -1340,6 +1424,7 @@ async def auto_link(ctx):
 
 
 @bot.user_command(name="Reset User")
+@discord.ext.commands.has_permissions(administrator=True)
 async def ctx_reset_user(ctx, member: discord.Member):
     try:
         user_count = session.query(DbUser).filter_by(ID=member.id).delete()
@@ -1786,8 +1871,8 @@ async def on_guild_channel_update(
 ):
     # We only want to handle category channel name updates
     if (
-        type(before) is discord.CategoryChannel
-        and type(after) is discord.CategoryChannel
+        isinstance(before, discord.CategoryChannel)
+        and isinstance(after, discord.CategoryChannel)
     ):
 
         # Check that this category was actually associated with a role.
