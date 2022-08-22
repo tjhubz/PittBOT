@@ -2,7 +2,6 @@
 
 import os
 from sqlite3 import IntegrityError
-from tkinter import E
 from urllib.request import urlopen
 import discord
 import discord.ext
