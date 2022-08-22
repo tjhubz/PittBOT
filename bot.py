@@ -365,7 +365,7 @@ class EmojiSyncView(discord.ui.View):
 
     @discord.ui.button(label='Accept', style=discord.ButtonStyle.green)
     async def accept_callback(self, button, interaction: discord.Interaction):
-        await interaction.response.send_message('Okay! I will sync this now')
+        await interaction.response.send_message('Okay! I will sync this now', ephemeral=True)
         
         if self.mod_type == 'Add':
             await sync_add(bot=bot, emoji=self.emoji)
