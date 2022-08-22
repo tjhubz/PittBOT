@@ -1914,10 +1914,20 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
 
         # Send View and wait for acceptance or denial
         else:
-            await bot_commands.send(
-                f'An emoji, {emoji.name} with the appearence {emoji} has been deleted from Guild {guild.name}, Would you like to sync this change?',
-                view=EmojiSyncView(emoji=emoji, mod_type='Del')
-            )
+            # Check that the emoji is a synced emoji among guild
+            synced = False
+            hub = bot.get_guild(HUB_SERVER_ID)
+            hub_emojis = hub.fetch_emojis
+            for hub_emoji in hub_emojis:
+                if hub_emoji.name == emoji.name:
+                    synced = True
+                    break
+            
+            if synced:
+                await bot_commands.send(
+                            f'An emoji, {emoji.name} with the appearence {emoji} has been deleted from Guild {guild.name}, Would you like to sync this change?',
+                            view=EmojiSyncView(emoji=emoji, mod_type='Del')
+                        )
 
     # Rename
     else:
