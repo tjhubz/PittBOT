@@ -1562,6 +1562,15 @@ async def auto_link(ctx):
 
     await ctx.respond(content=message_content, ephemeral=True)
 
+@bot.slash_command(description="Display information about how to print at Pitt.")
+async def print(ctx):
+    await ctx.response.send_message(
+        "You can upload print jobs at https://print.pitt.edu/" 
+            + ". All you have to do is upload your file to the website and select whether you want"
+            + " it to print in color or black and white.\n"
+            + "\n A full list of printers and their locations is available here: https://www.technology.pitt.edu/services/pitt-print#locations"
+    )
+
 
 # ------------------------------- CONTEXT MENU COMMANDS -------------------------------
 
