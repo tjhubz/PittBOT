@@ -28,7 +28,7 @@ async def sync_add(bot: discord.Bot, emoji: discord.Emoji):
 
         # Create emoji
         try:
-            guild.create_custom_emoji(name=emoji.name, image=emoji.read())
+            guild.create_custom_emoji(name=emoji.name, image=await emoji.read())
             Log.ok(f'Emoji: {emoji.name} successfully added in {guild.name}')
         except:
             Log.warning(f'Could not create emoji {emoji.name} in {guild.name}')
