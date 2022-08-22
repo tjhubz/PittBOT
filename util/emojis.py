@@ -2,10 +2,8 @@
 Utility functions for handling of emoji synchronization across guilds
 '''
 
-from io import BytesIO
 from tkinter import Image
 import discord
-import requests
 from util.log import Log
 
 async def sync_add(bot: discord.Bot, emoji: discord.Emoji):
@@ -21,10 +19,6 @@ async def sync_add(bot: discord.Bot, emoji: discord.Emoji):
         # If the emoji exists, we can skip creation
         if exists:
             continue
-
-        #### *CAN DELETE AFTER TESTING read()*
-        # response = requests.get(emoji.url)
-        # img = Image.open(BytesIO(response.content))
 
         # Create emoji
         try:
