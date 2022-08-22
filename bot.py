@@ -365,8 +365,6 @@ class EmojiSyncView(discord.ui.View):
 
     @discord.ui.button(label='Accept', style=discord.ButtonStyle.green)
     async def accept_callback(self, button, interaction: discord.Interaction):
-        await interaction.response.send_message('Okay! I will sync this now', ephemeral=True)
-        
         if self.mod_type == 'Add':
             await sync_add(bot=bot, emoji=self.emoji)
         elif self.mod_type == 'Del':
@@ -374,9 +372,12 @@ class EmojiSyncView(discord.ui.View):
         else:
             await sync_name(bot=bot, old_name=self.old_name, new_emoji=self.emoji)
 
+        await interaction.response.edit_message('Okay! I will sync this now.', view=None, ephemeral=True)
+
     @discord.ui.button(label='Deny', style=discord.ButtonStyle.red)
-    async def deny_callback(self, button, interaction):
+    async def deny_callback(self, button, interaction: discord.Interaction):
         # Do nothing!
+        await interaction.response.edit_message('Okay! This change will not be synced.', view=None, ephemeral=True)
         return
 
 class UnsetupConfirmation(discord.ui.Modal):
@@ -1874,13 +1875,6 @@ async def on_guild_channel_update(
 
 @bot.event
 async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.Emoji], after: Sequence[discord.Emoji]):
-    # PLAN:
-    #   - Check if operation is an add/rename/delete
-    #   - Check if operation was done in control server
-    #       - If not, ask control server if synching should be done
-    #           - If yes, sync
-    #           - If no, do nothing
-    #       - If yes, go ahead and synch
     bot_commands = bot.get_channel(BOT_COMMANDS_ID)
 
     # Determine if change was made in control server
@@ -1903,7 +1897,7 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
         else:
             # TODO: Format based on desired goals
             await bot_commands.send(
-                f'An emoji, {emoji.name} with the appearence {emoji} has been added. Would you like to sync this change?', 
+                f'An emoji, {emoji.name} with the appearence {emoji} has been added to Guild {guild.name} Would you like to sync this change?', 
                 view=EmojiSyncView(emoji=emoji, mod_type='Add')
             )
 
@@ -1916,12 +1910,12 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
         
         # Auto-sync
         if changed_in_hub:
-            sync_delete(bot=bot, emoji=emoji)
+            await sync_delete(bot=bot, emoji=emoji)
 
         # Send View and wait for acceptance or denial
         else:
             await bot_commands.send(
-                f'An emoji, {emoji.name} with the appearence {emoji} has been deleted, Would you like to sync this change?',
+                f'An emoji, {emoji.name} with the appearence {emoji} has been deleted from Guild {guild.name}, Would you like to sync this change?',
                 view=EmojiSyncView(emoji=emoji, mod_type='Del')
             )
 
@@ -1944,12 +1938,12 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
 
         # Check if auto-sync is needed
         if changed_in_hub:
-            sync_name(bot=bot, old_name=old_name, new_emoji=new_emoji)
+            await sync_name(bot=bot, old_name=old_name, new_emoji=new_emoji)
 
         # Send view asking if the change should be synced
         else:
             await bot_commands.send(
-                f'An emojis name was changed from {old_name} to {new_emoji.name}. Would you like to sync this change?',
+                f'An emojis name was changed from {old_name} to {new_emoji.name} in Guild {guild.name}. Would you like to sync this change?',
                 view=EmojiSyncView(emoji=new_emoji, old_name=old_name, mod_type='Name')
             )
 
