@@ -317,7 +317,11 @@ class VerifyModal(Modal):
             del user_to_invite[member.id]
         if member.id in user_to_nickname:
             del user_to_nickname[member.id]
-        session.commit()
+        try:
+            session.commit()
+        except:
+            session.rollback()
+            Log.error(f"Could not save any database entries for {member.name}[{member.id}]. This is a critical DB error.")
 
         async def on_timeout(self):
             self.stop()
@@ -360,13 +364,14 @@ class CommunitySelectDropdown(discord.ui.Select):
         user_to_invite[interaction.user.id] = self.opts_to_inv[self.values[0]]
         # Add row to database
         verifying_data = DbVerifyingUser(
-            ID=interaction.user.id, invite_code=user_to_invite[interaction.user.id]
+            ID=interaction.user.id, invite_code=user_to_invite[interaction.user.id].code
         )
 
         session.merge(verifying_data)
         try:
             session.commit()
         except:
+            session.rollback()
             Log.error(
                 f"Couldn't add {interaction.userber.name}[{interaction.user.id}] to VerifyingUsers database."
             )
@@ -407,6 +412,7 @@ class UnsetupConfirmation(discord.ui.Modal):
                 try:
                     session.commit()
                 except Exception as ex:
+                    session.rollback()
                     await interaction.response.send_message(
                         "An unexpected database error occurred.", ephemeral=True
                     )
@@ -819,6 +825,12 @@ async def verify(ctx):
                     return
 
     # Begin ACTUAL VERIFICATION
+    
+    # Ensure session is committed before leaving function
+    try:
+        session.commit()
+    except:
+        session.rollback()
 
     user_to_assigned_invite[member.id] = invite
     user_to_assigned_role[member.id] = assigned_role
@@ -916,6 +928,7 @@ async def make_categories(
         try:
             session.commit()
         except Exception:
+            session.rollback()
             Log.error(f"Couldn't merge any categories into to database.")
 
         # Update invite cache, important for on_member_join's functionality
@@ -932,8 +945,11 @@ async def make_categories(
                 )
                 session.merge(invite_obj)
                 invite_to_role[invite.code] = invite_role_dict[invite.code]
-
-        session.commit()
+        try:
+            session.commit()
+        except:
+            session.rollback()
+            
         # Upload the file containing the links and ra names as an attachment, so they
         # can be distributed to the RAs to share.
         await ctx.send_followup(file=discord.File("ras-with-links.txt"))
@@ -1007,6 +1023,7 @@ async def setup(ctx):
     try:
         session.commit()
     except IntegrityError as int_exception:
+        session.rollback()
         Log.warning(
             "Attempting to merge an already existent guild into the database failed:"
         )
@@ -1062,7 +1079,10 @@ async def set_email(
             community="resident",  # Preferable to use set_user
         )
         session.merge(user)
-        session.commit()
+        try:
+            session.commit()
+        except:
+            session.rollback()
         return
 
     user.email = email
@@ -1078,6 +1098,7 @@ async def set_email(
     try:
         session.commit()
     except Exception as ex:
+        session.rollback()
         await ctx.respond(
             "An unexpected database error occurred. Attempting to print traceback.",
             ephemeral=True,
@@ -1180,7 +1201,10 @@ async def set_user(
             community=role.name,
         )
         session.merge(user)
-        session.commit()
+        try:
+            session.commit()
+        except:
+            session.rollback()
 
         await ctx.response.send_message(
             content="All set! {member.name} has been added to the database.",
@@ -1196,7 +1220,10 @@ async def set_user(
     user.community = role.name
 
     session.merge(user)
-    session.commit()
+    try:
+        session.commit()
+    except:
+        session.rollback()
 
     await ctx.response.send_message(
         content="All set! {member.name} has been updated.", ephemeral=True
@@ -1244,7 +1271,10 @@ async def set_ra(
             community=community.name,
         )
         session.merge(user)
-        session.commit()
+        try:
+            session.commit()
+        except:
+            session.rollback()
         return
 
     if not member:
@@ -1289,6 +1319,7 @@ async def set_ra(
     try:
         session.commit()
     except Exception as ex:
+        session.rollback()
         await ctx.respond(
             "An unexpected database error occurred. Attempting to print traceback.",
             ephemeral=True,
@@ -1361,8 +1392,11 @@ async def reset_user(
                 ephemeral=True,
             )
             return
-
-    session.commit()
+        
+    try:
+        session.commit()
+    except:
+        session.rollback()
 
     if user_count > 0:
         if verifying_user_count > 0:
@@ -1511,6 +1545,7 @@ async def auto_link(ctx):
     try:
         session.commit()
     except Exception:
+        session.rollback()
         Log.error("Couldn't merge any categories into to database.")
         await ctx.respond(
             content="We couldn't merge any categories into the database.",
@@ -1543,8 +1578,10 @@ async def ctx_reset_user(ctx, member: discord.Member):
             ephemeral=True,
         )
         return
-
-    session.commit()
+    try:
+        session.commit()
+    except:
+        session.rollback()
 
     if user_count > 0:
         await ctx.respond(f"Dropped row for user with ID in table Users: {member.id}", ephemeral=True)
@@ -1579,8 +1616,10 @@ async def ctx_reset_user_drop(ctx, member: discord.Member):
             ephemeral=True,
         )
         return
-
-    session.commit()
+    try:
+        session.commit()
+    except:
+        session.rollback()
 
     if user_count > 0:
         if verifying_user_count > 0:
@@ -1871,6 +1910,7 @@ async def on_member_join(member: discord.Member):
         try:
             session.commit()
         except:
+            session.rollback()
             Log.error(
                 f"Couldn't add {member.name}[{member.id}] to VerifyingUsers database."
             )
@@ -2015,6 +2055,7 @@ async def on_guild_join(guild):
     try:
         session.commit()
     except IntegrityError as int_exception:
+        session.rollback()
         Log.warning(
             "Attempting to merge an already existent guild into the database failed:"
         )
