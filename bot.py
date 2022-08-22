@@ -1415,9 +1415,6 @@ async def prune_pending(ctx):
             # Get DM channel
             dm_channel = await member.create_dm()
 
-            num_pruned += 1
-            pruned.append(member)
-
             # Notify them
             if dm_channel:
                 try:
@@ -1447,6 +1444,9 @@ async def prune_pending(ctx):
                     f"Member {member.name}[{member.id}] cannot be kicked due to a permissions error."
                 )
                 continue
+            
+            num_pruned += 1
+            pruned.append(member)
 
     # Respond with ephemeral list of members pruned
     message_content = f"**{num_pruned} members were pruned:**\n"
