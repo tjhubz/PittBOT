@@ -2,6 +2,7 @@
 
 import os
 from sqlite3 import IntegrityError
+from tkinter import E
 from urllib.request import urlopen
 import discord
 import discord.ext
@@ -1115,8 +1116,8 @@ async def set_user(
     try:
         await member.add_roles(role, reason="Manual override")
     except discord.errors.Forbidden:
-        await ctx.respond(
-            "I don't have permission to modify this user's roles. Ensure that my bot role is higher on the role list than the user's highest role.",
+        await ctx.followup.send(
+            content="I don't have permission to modify this user's roles. Ensure that my bot role is higher on the role list than the user's highest role.",
             ephemeral=True,
         )
 
@@ -1137,7 +1138,7 @@ async def set_user(
                 f"Guild {ctx.guild.name}[{ctx.guild.id}] does not have a role named 'RA'"
             )
             await ctx.followup.send(
-                "There is no role named 'RA' in this guild, but the user was set to be an RA. User will not receive any elevated RA role.",
+                content="There is no role named 'RA' in this guild, but the user was set to be an RA. User will not receive any elevated RA role.",
                 ephemeral=True,
             )
         else:
@@ -1145,10 +1146,25 @@ async def set_user(
                 await member.add_roles(ra_role, reason="Manual override")
             except discord.errors.Forbidden:
                 await ctx.respond(
-                    "I don't have permission to modify this user's roles. Ensure that my bot role is higher on the role list than the user's highest role.",
+                    content="I don't have permission to modify this user's roles. Ensure that my bot role is higher on the role list than the user's highest role.",
                     ephemeral=True,
                 )
-
+    else:
+        try:
+            residents_role = discord.utils.get(ctx.guild.roles, name="residents")
+            if residents_role:
+                await member.add_roles(residents_role, reason="Manual override")
+            else:
+                await ctx.followup.send(
+                    content="There is no role named 'residents' in this guild, but the user was set to be an RA. User will not receive any elevated RA role.",
+                    ephemeral=True,
+                )
+        except discord.errors.Forbidden:
+            await ctx.followup.send(
+                content="I don't have permission to modify this user's roles. Ensure that my bot role is higher on the role list than the user's highest role.",
+                ephemeral=True,
+            )
+            
     try:
         user = session.query(DbUser).filter_by(ID=member.id).one()
         Log.ok(f"User {member.name} was in the database.")
@@ -1400,23 +1416,21 @@ async def prune_pending(ctx):
             # Get DM channel
             dm_channel = await member.create_dm()
 
-            # Kick member
-            try:
-                await member.kick(reason="Pruned for not initiating verification")
-            except discord.Forbidden:
-                Log.warning(
-                    f"Member {member.name}[{member.id}] cannot be kicked due to a permissions error."
-                )
-                continue
-
             num_pruned += 1
             pruned.append(member)
 
             # Notify them
             if dm_channel:
-                await dm_channel.send(
-                    f"Oh no! It looks like your verification period expired for the server {ctx.guild.name}. Please re-join with the invite your RA sent you and press the green verify button once you join."
-                )
+                try:
+                    await dm_channel.send(
+                        f"Oh no! It looks like your verification period expired for the server {ctx.guild.name}. Please re-join with the invite your RA sent you and press the green verify button once you join."
+                    )
+                except discord.Forbidden:
+                    Log.warning(f"Member {member.name}[{member.id}] does not allow DMs or creating a DM failed, could not notify them of prune.")
+                    if logs_channel:
+                        await logs_channel.send(
+                            f"**WARNING**: Member {member.name}[{member.id}] does not allow DMs or creating a DM failed, could not notify them of prune."
+                        )
             else:
                 Log.warning(
                     f"Member {member.name}[{member.id}] does not allow DMs or creating a DM failed, could not notify them of prune."
@@ -1425,6 +1439,15 @@ async def prune_pending(ctx):
                     await logs_channel.send(
                         f"**WARNING**: Member {member.name}[{member.id}] does not allow DMs or creating a DM failed, could not notify them of prune."
                     )
+                    
+            # Kick member
+            try:
+                await member.kick(reason="Pruned for not initiating verification")
+            except discord.Forbidden:
+                Log.warning(
+                    f"Member {member.name}[{member.id}] cannot be kicked due to a permissions error."
+                )
+                continue
 
     # Respond with ephemeral list of members pruned
     message_content = f"**{num_pruned} members were pruned:**\n"
