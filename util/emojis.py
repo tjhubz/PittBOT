@@ -22,7 +22,7 @@ async def sync_add(bot: discord.Bot, emoji: discord.Emoji):
 
         # Create emoji
         try:
-            guild.create_custom_emoji(name=emoji.name, image=await emoji.read())
+            await guild.create_custom_emoji(name=emoji.name, image=await emoji.read())
             Log.ok(f'Emoji: {emoji.name} successfully added in {guild.name}')
         except:
             Log.warning(f'Could not create emoji {emoji.name} in {guild.name}')
@@ -30,7 +30,7 @@ async def sync_add(bot: discord.Bot, emoji: discord.Emoji):
 
 async def sync_delete(bot: discord.Bot, emoji: discord.Emoji):
     for guild in bot.guilds:
-        guild_emojis = guild.fetch_emojis()
+        guild_emojis = await guild.fetch_emojis()
         del_emoji = None
 
         # Check if the guild contains an emoji that matches this one
@@ -43,7 +43,7 @@ async def sync_delete(bot: discord.Bot, emoji: discord.Emoji):
             # Delete the emoji in the server if possible
             # Could be forbidden to delete the emoji or get HTTP Exception
             try:
-                del_emoji.delete()
+                await del_emoji.delete()
                 Log.ok(f'Emoji: {emoji.name} in {guild.name} successfully deleted')
             except:
                 Log.warning(f'Could not delete emoji {emoji.name} in {guild.name}')
@@ -53,7 +53,7 @@ async def sync_name(bot: discord.Bot, old_name: str, new_emoji: discord.Emoji):
     for guild in bot.guilds:
         
         # Check the guild for an emoji with the same name
-        guild_emojis = guild.fetch_emojis()
+        guild_emojis = await guild.fetch_emojis()
         for emoji in guild_emojis:
             
             # If the name matches, update it and move on to the next guild
