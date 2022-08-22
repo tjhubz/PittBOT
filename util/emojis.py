@@ -4,7 +4,7 @@ Utility functions for handling of emoji synchronization across guilds
 
 from tkinter import Image
 import discord
-from util.log import Log
+from log import Log
 
 async def sync_add(bot: discord.Bot, emoji: discord.Emoji):
     for guild in bot.guilds:
