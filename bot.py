@@ -1144,7 +1144,7 @@ async def set_user(
             try:
                 await member.add_roles(ra_role, reason="Manual override")
             except discord.errors.Forbidden:
-                await ctx.respond(
+                await ctx.followup.send(
                     content="I don't have permission to modify this user's roles. Ensure that my bot role is higher on the role list than the user's highest role.",
                     ephemeral=True,
                 )
@@ -1155,7 +1155,7 @@ async def set_user(
                 await member.add_roles(residents_role, reason="Manual override")
             else:
                 await ctx.followup.send(
-                    content="There is no role named 'residents' in this guild, but the user was set to be an RA. User will not receive any elevated RA role.",
+                    content="There is no role named 'residents' in this guild, but the user was set not to be an RA. User will not receive any 'residents' role.",
                     ephemeral=True,
                 )
         except discord.errors.Forbidden:
