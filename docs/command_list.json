@@ -1,0 +1,112 @@
+{
+    "verify": {
+        "description": "Verify yourself to start using ResLife servers!",
+        "permissions": [],
+        "parameters": [],
+        "types": ["Slash Command"]
+    },
+    "make_categories": {
+        "description": "Create categories based off of a hastebin/pastebin list of RA names.",
+        "permissions": ["manage_channels"],
+        "parameters": [
+            {
+                "name": "link",
+                "description": "URL to raw hastebin or pastebin page with list of RAs in format 'lastname firstname' per line"
+            }
+        ],
+        "types": ["Slash Command"]
+    },
+    "setup": {
+        "description": "Manually begin initializing necessary information for the bot to work in this server.",
+        "permissions": ["administrator"],
+        "parameters": [],
+        "types": ["Slash Command"]
+    },
+    "unsetup": {
+        "description": "Reset a server's setup-status. Only use this if you know what you're doing.",
+        "permissions": ["administrator"],
+        "parameters": [],
+        "types": ["Slash Command"]
+    },
+    "set_email": {
+        "description": "Reset a user's email using their ID. set_user is preferred.",
+        "permissions": ["administrator"],
+        "parameters": [
+            {
+                "name": "member",
+                "description": "Member to set email for."
+            },
+            {
+                "name": "email",
+                "description": "Email address"
+            }
+        ],
+        "types": ["Slash Command"]    
+    },
+    "set_user": {
+        "description": "Manually set up and verify a user",
+        "permissions": ["administrator"],
+        "parameters": [
+            {
+                "name": "member",
+                "description": "Member to edit"
+            },
+            {
+                "name": "role",
+                "description": "Role to assign"
+            },
+            {
+                "name": "email",
+                "description": "Email address"
+            },
+            {
+                "name": "is_ra",
+                "description": "Is user an RA or not?"
+            }
+        ],
+        "types": ["Slash Command"]
+    },
+    "set_ra": {
+        "description": "Reset a user's email to a specific value using ther ID",
+        "permissions": ["administrator"],
+        "parameters": [
+            {
+                "name": "member",
+                "description": "User to set as an RA"
+            },
+            {
+                "name": "community",
+                "description": "The community role which this RA oversees"
+            }
+        ],
+        "types": ["Slash Command"]
+    },
+    "lookup": {
+        "description": "Look up a user's email with their Discord ID (this is NOT their username).",
+        "permissions": ["administrator"],
+        "parameters": [
+            {
+                "name": "member",
+                "description": "User to lookup"
+            }
+        ],
+        "types": ["Slash Command"]
+    },
+    "reset_user": {
+        "description": "Maunally drop a user from the database/remove them from verification list.",
+        "permissions": ["administrator"],
+        "parameters": [
+            {
+                "name": "member",
+                "description": "Member to reset"
+            }
+        ],
+        "types": ["Slash Command", "User Context Menu"]
+    },
+    "auto_link": {
+        "description": "Manually link any categories whose name match a role, for backwards compatibility.",
+        "permissions": ["administrator"],
+        "parameters": [],
+        "types": ["Slash Command"]
+    }
+}
