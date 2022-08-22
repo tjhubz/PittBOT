@@ -819,6 +819,9 @@ async def verify(ctx):
                     return
 
     # Begin ACTUAL VERIFICATION
+    
+    # Ensure session is committed before leaving function
+    session.commit()
 
     user_to_assigned_invite[member.id] = invite
     user_to_assigned_role[member.id] = assigned_role
