@@ -410,12 +410,12 @@ class EmojiSyncView(discord.ui.View):
         else:
             await sync_name(bot=bot, old_name=self.old_name, new_emoji=self.emoji)
 
-        await interaction.response.edit_message('Okay! I will sync this now.', view=None, ephemeral=True)
+        await interaction.response.edit_message('Okay! I will sync this now.', view=None, delete_after=60)
 
     @discord.ui.button(label='Deny', style=discord.ButtonStyle.red)
     async def deny_callback(self, button, interaction: discord.Interaction):
         # Do nothing!
-        await interaction.response.edit_message('Okay! This change will not be synced.', view=None, ephemeral=True)
+        await interaction.response.edit_message('Okay! This change will not be synced.', view=None, delete_after=60)
         return
 
 class UnsetupConfirmation(discord.ui.Modal):
