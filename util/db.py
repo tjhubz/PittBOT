@@ -122,3 +122,23 @@ class DbCategory(Base):
     role_id: {self.role_id}
 }}
 """
+
+class DbVerifyingUser(Base):
+    """Represents a user that is in the verification process, or data used for verification, in the bot's SQLite3 database.
+    ## Attributes
+    
+    
+    """
+    __tablename__ = "verifyingusers"
+    
+    # User ID
+    ID = Column("id", BigInteger().with_variant(Integer, "sqlite"), primary_key=True)
+    # Invite code user used to join
+    invite_code = Column("invite", String)
+
+    def __repr__(self):
+        return f"""VerifyingUser: {{
+    user_id: {self.ID}
+    invite_code: {self.invite_code}
+}}
+"""

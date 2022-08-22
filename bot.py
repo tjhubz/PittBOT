@@ -12,7 +12,7 @@ import requests
 from sqlalchemy.orm import sessionmaker
 import util.invites
 from util.log import Log
-from util.db import DbGuild, DbInvite, DbUser, DbCategory, Base
+from util.db import DbGuild, DbInvite, DbUser, DbCategory, DbVerifyingUser, Base
 
 
 bot = discord.Bot(intents=discord.Intents.all())
@@ -358,6 +358,19 @@ class CommunitySelectDropdown(discord.ui.Select):
     async def callback(self, interaction: discord.Interaction):
         override_user_to_code[interaction.user.id] = self.opts_to_inv[self.values[0]]
         user_to_invite[interaction.user.id] = self.opts_to_inv[self.values[0]]
+        # Add row to database
+        verifying_data = DbVerifyingUser(
+            ID=interaction.user.id, invite_code=user_to_invite[interaction.user.id]
+        )
+
+        session.merge(verifying_data)
+        try:
+            session.commit()
+        except:
+            Log.error(
+                f"Couldn't add {interaction.userber.name}[{interaction.user.id}] to VerifyingUsers database."
+            )
+
         Log.ok(f"{override_user_to_code=}")
         await verify(interaction)
 
@@ -506,8 +519,45 @@ async def verify(ctx):
 
     assigned_role = None
 
+    try:
+        verifying_user = session.query(DbVerifyingUser).filter_by(ID=member.id).one()
+        invite = next(
+            filter(lambda inv: inv.code == verifying_user.invite_code, old_invites),
+            None,
+        )
+    except:
+        verifying_user = None
+
     if member.id in user_to_invite:
         invite = user_to_invite[member.id]
+        if invite.code in invite_to_role:
+            assigned_role = invite_to_role[invite.code]
+            Log.ok(
+                f"Invite link {invite.code} is cached with '{assigned_role}', assigning this role."
+            )
+        else:
+            try:
+                inv_object = session.query(DbInvite).filter_by(code=invite.code).one()
+            except Exception:
+                inv_object = None
+
+            if inv_object:
+                assigned_role = discord.utils.get(guild.roles, id=inv_object.role_id)
+                if not assigned_role:
+                    await ctx.response.send_message(
+                        "We couldn't find a role to give you, ask your RA for help!"
+                    )
+                    Log.error(
+                        f"Databased invite '{inv_object.code}' did not return a role to assign to {member.name}[{member.id}]. This is an error."
+                    )
+                    if logs_channel:
+                        await logs_channel.send(
+                            content=f"Databased invite '{inv_object.code}' did not return a role to assign to {member.name}[{member.id}]. This is an error."
+                        )
+                    # Abort
+                    return
+
+    elif verifying_user and invite:
         if invite.code in invite_to_role:
             assigned_role = invite_to_role[invite.code]
             Log.ok(
@@ -1065,8 +1115,8 @@ async def set_user(
     try:
         await member.add_roles(role, reason="Manual override")
     except discord.errors.Forbidden:
-        await ctx.respond(
-            "I don't have permission to modify this user's roles. Ensure that my bot role is higher on the role list than the user's highest role.",
+        await ctx.followup.send(
+            content="I don't have permission to modify this user's roles. Ensure that my bot role is higher on the role list than the user's highest role.",
             ephemeral=True,
         )
 
@@ -1087,18 +1137,33 @@ async def set_user(
                 f"Guild {ctx.guild.name}[{ctx.guild.id}] does not have a role named 'RA'"
             )
             await ctx.followup.send(
-                "There is no role named 'RA' in this guild, but the user was set to be an RA. User will not receive any elevated RA role.",
+                content="There is no role named 'RA' in this guild, but the user was set to be an RA. User will not receive any elevated RA role.",
                 ephemeral=True,
             )
         else:
             try:
                 await member.add_roles(ra_role, reason="Manual override")
             except discord.errors.Forbidden:
-                await ctx.respond(
-                    "I don't have permission to modify this user's roles. Ensure that my bot role is higher on the role list than the user's highest role.",
+                await ctx.followup.send(
+                    content="I don't have permission to modify this user's roles. Ensure that my bot role is higher on the role list than the user's highest role.",
                     ephemeral=True,
                 )
-
+    else:
+        try:
+            residents_role = discord.utils.get(ctx.guild.roles, name="residents")
+            if residents_role:
+                await member.add_roles(residents_role, reason="Manual override")
+            else:
+                await ctx.followup.send(
+                    content="There is no role named 'residents' in this guild, but the user was set not to be an RA. User will not receive any 'residents' role.",
+                    ephemeral=True,
+                )
+        except discord.errors.Forbidden:
+            await ctx.followup.send(
+                content="I don't have permission to modify this user's roles. Ensure that my bot role is higher on the role list than the user's highest role.",
+                ephemeral=True,
+            )
+            
     try:
         user = session.query(DbUser).filter_by(ID=member.id).one()
         Log.ok(f"User {member.name} was in the database.")
@@ -1264,21 +1329,57 @@ async def lookup(ctx, member: discord.Option(discord.Member, "User to lookup")):
     description="Manually drop a user from the database/remove them from verification list."
 )
 @discord.ext.commands.has_permissions(administrator=True)
-async def reset_user(ctx, member: discord.Option(discord.Member, "Member to reset")):
+async def reset_user(
+    ctx,
+    member: discord.Option(discord.Member, "Member to reset"),
+    drop_invite_code: discord.Option(
+        bool,
+        "Whether to erase association with invite code",
+        required=False,
+        default=False,
+    ),
+):
     try:
         user_count = session.query(DbUser).filter_by(ID=member.id).delete()
     except:
-        user_count = None
+        user_count = 0
         await ctx.respond(
             f"User ID did not return a database row or could not be deleted: {member.id}",
             ephemeral=True,
         )
         return
 
+    if drop_invite_code:
+        try:
+            verifying_user_count = (
+                session.query(DbVerifyingUser).filter_by(ID=member.id).delete()
+            )
+        except:
+            verifying_user_count = 0
+            await ctx.respond(
+                f"User ID did not return a database row for VerifyingUsers or could not be deleted: {member.id}",
+                ephemeral=True,
+            )
+            return
+
     session.commit()
 
     if user_count > 0:
-        await ctx.respond(f"Dropped row for user with ID: {member.id}", ephemeral=True)
+        if verifying_user_count > 0:
+            await ctx.respond(
+                f"Dropped row for user with ID in both table Users and table VerifyingUsers: {member.id}",
+                ephemeral=True,
+            )
+        else:
+            await ctx.respond(
+                f"Dropped row for user with ID in table Users: {member.id}",
+                ephemeral=True,
+            )
+    elif verifying_user_count > 0:
+        await ctx.respond(
+            f"Dropped row for user with ID in table VerifyingUsers: {member.id}",
+            ephemeral=True,
+        )
     else:
         await ctx.respond(
             f"No database row exists for user {member.name}[{member.id}], nothing to drop.",
@@ -1314,23 +1415,18 @@ async def prune_pending(ctx):
             # Get DM channel
             dm_channel = await member.create_dm()
 
-            # Kick member
-            try:
-                await member.kick(reason="Pruned for not initiating verification")
-            except discord.Forbidden:
-                Log.warning(
-                    f"Member {member.name}[{member.id}] cannot be kicked due to a permissions error."
-                )
-                continue
-
-            num_pruned += 1
-            pruned.append(member)
-
             # Notify them
             if dm_channel:
-                await dm_channel.send(
-                    f"Oh no! It looks like your verification period expired for the server {ctx.guild.name}. Please re-join with the invite your RA sent you and press the green verify button once you join."
-                )
+                try:
+                    await dm_channel.send(
+                        f"Oh no! It looks like your verification period expired for the server {ctx.guild.name}. Please re-join with the invite your RA sent you and press the green verify button once you join."
+                    )
+                except discord.Forbidden:
+                    Log.warning(f"Member {member.name}[{member.id}] does not allow DMs or creating a DM failed, could not notify them of prune.")
+                    if logs_channel:
+                        await logs_channel.send(
+                            f"**WARNING**: Member {member.name}[{member.id}] does not allow DMs or creating a DM failed, could not notify them of prune."
+                        )
             else:
                 Log.warning(
                     f"Member {member.name}[{member.id}] does not allow DMs or creating a DM failed, could not notify them of prune."
@@ -1339,6 +1435,18 @@ async def prune_pending(ctx):
                     await logs_channel.send(
                         f"**WARNING**: Member {member.name}[{member.id}] does not allow DMs or creating a DM failed, could not notify them of prune."
                     )
+                    
+            # Kick member
+            try:
+                await member.kick(reason="Pruned for not initiating verification")
+            except discord.Forbidden:
+                Log.warning(
+                    f"Member {member.name}[{member.id}] cannot be kicked due to a permissions error."
+                )
+                continue
+            
+            num_pruned += 1
+            pruned.append(member)
 
     # Respond with ephemeral list of members pruned
     message_content = f"**{num_pruned} members were pruned:**\n"
@@ -1423,7 +1531,7 @@ async def auto_link(ctx):
 # ------------------------------- CONTEXT MENU COMMANDS -------------------------------
 
 
-@bot.user_command(name="Reset User")
+@bot.user_command(name="Reset")
 @discord.ext.commands.has_permissions(administrator=True)
 async def ctx_reset_user(ctx, member: discord.Member):
     try:
@@ -1439,7 +1547,57 @@ async def ctx_reset_user(ctx, member: discord.Member):
     session.commit()
 
     if user_count > 0:
-        await ctx.respond(f"Dropped row for user with ID: {member.id}", ephemeral=True)
+        await ctx.respond(f"Dropped row for user with ID in table Users: {member.id}", ephemeral=True)
+    else:
+        await ctx.respond(
+            f"No database row exists in table Users for user {member.name}[{member.id}], nothing to drop.",
+            ephemeral=True,
+        )
+
+
+@bot.user_command(name="Reset and Drop Invite")
+@discord.ext.commands.has_permissions(administrator=True)
+async def ctx_reset_user_drop(ctx, member: discord.Member):
+    try:
+        user_count = session.query(DbUser).filter_by(ID=member.id).delete()
+    except:
+        user_count = 0
+        await ctx.respond(
+            f"User ID did not return a database row or could not be deleted: {member.id}",
+            ephemeral=True,
+        )
+        return
+
+    try:
+        verifying_user_count = (
+            session.query(DbVerifyingUser).filter_by(ID=member.id).delete()
+        )
+    except:
+        verifying_user_count = 0
+        await ctx.respond(
+            f"User ID did not return a database row for VerifyingUsers or could not be deleted: {member.id}",
+            ephemeral=True,
+        )
+        return
+
+    session.commit()
+
+    if user_count > 0:
+        if verifying_user_count > 0:
+            await ctx.respond(
+                f"Dropped row for user with ID in both table Users and table VerifyingUsers: {member.id}",
+                ephemeral=True,
+            )
+        else:
+            await ctx.respond(
+                f"Dropped row for user with ID in table Users: {member.id}",
+                ephemeral=True,
+            )
+    elif verifying_user_count > 0:
+        await ctx.respond(
+            f"Dropped row for user with ID in table VerifyingUsers: {member.id}",
+            ephemeral=True,
+        )
     else:
         await ctx.respond(
             f"No database row exists for user {member.name}[{member.id}], nothing to drop.",
@@ -1706,7 +1864,16 @@ async def on_member_join(member: discord.Member):
     if num_overlap == 1:
         invite = potential_invites[0]
         user_to_invite[member.id] = invite
+        # Add row to database
+        verifying_data = DbVerifyingUser(ID=member.id, invite_code=invite.code)
 
+        session.merge(verifying_data)
+        try:
+            session.commit()
+        except:
+            Log.error(
+                f"Couldn't add {member.name}[{member.id}] to VerifyingUsers database."
+            )
     elif num_overlap > 1:
         # Code for potential overlap
         options = []
@@ -1732,7 +1899,7 @@ async def on_member_join(member: discord.Member):
                     role = discord.utils.get(member.guild.roles, id=inv_object.role_id)
                     if role:
                         Log.ok(
-                            f"Databased invite '{inv.code}' returned a valid role '{role.name}', assigning this role."
+                            f"Databased invite '{inv.code}' returned a valid role '{role.name}', adding this role to manual select."
                         )
                         options.append(role.name)
                         options_to_inv[role.name] = inv
@@ -1870,9 +2037,8 @@ async def on_guild_channel_update(
     before: discord.abc.GuildChannel, after: discord.abc.GuildChannel
 ):
     # We only want to handle category channel name updates
-    if (
-        isinstance(before, discord.CategoryChannel)
-        and isinstance(after, discord.CategoryChannel)
+    if isinstance(before, discord.CategoryChannel) and isinstance(
+        after, discord.CategoryChannel
     ):
 
         # Check that this category was actually associated with a role.
