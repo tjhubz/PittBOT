@@ -321,7 +321,9 @@ class VerifyModal(Modal):
             session.commit()
         except:
             session.rollback()
-            Log.error(f"Could not save any database entries for {member.name}[{member.id}]. This is a critical DB error.")
+            Log.error(
+                f"Could not save any database entries for {member.name}[{member.id}]. This is a critical DB error."
+            )
 
         async def on_timeout(self):
             self.stop()
@@ -825,7 +827,7 @@ async def verify(ctx):
                     return
 
     # Begin ACTUAL VERIFICATION
-    
+
     # Ensure session is committed before leaving function
     try:
         session.commit()
@@ -949,7 +951,7 @@ async def make_categories(
             session.commit()
         except:
             session.rollback()
-            
+
         # Upload the file containing the links and ra names as an attachment, so they
         # can be distributed to the RAs to share.
         await ctx.send_followup(file=discord.File("ras-with-links.txt"))
@@ -1184,7 +1186,7 @@ async def set_user(
                 content="I don't have permission to modify this user's roles. Ensure that my bot role is higher on the role list than the user's highest role.",
                 ephemeral=True,
             )
-            
+
     try:
         user = session.query(DbUser).filter_by(ID=member.id).one()
         Log.ok(f"User {member.name} was in the database.")
@@ -1392,7 +1394,7 @@ async def reset_user(
                 ephemeral=True,
             )
             return
-        
+
     try:
         session.commit()
     except:
@@ -1456,7 +1458,9 @@ async def prune_pending(ctx):
                         f"Oh no! It looks like your verification period expired for the server {ctx.guild.name}. Please re-join with the invite your RA sent you and press the green verify button once you join."
                     )
                 except discord.Forbidden:
-                    Log.warning(f"Member {member.name}[{member.id}] does not allow DMs or creating a DM failed, could not notify them of prune.")
+                    Log.warning(
+                        f"Member {member.name}[{member.id}] does not allow DMs or creating a DM failed, could not notify them of prune."
+                    )
                     if logs_channel:
                         await logs_channel.send(
                             f"**WARNING**: Member {member.name}[{member.id}] does not allow DMs or creating a DM failed, could not notify them of prune."
@@ -1469,7 +1473,7 @@ async def prune_pending(ctx):
                     await logs_channel.send(
                         f"**WARNING**: Member {member.name}[{member.id}] does not allow DMs or creating a DM failed, could not notify them of prune."
                     )
-                    
+
             # Kick member
             try:
                 await member.kick(reason="Pruned for not initiating verification")
@@ -1478,7 +1482,7 @@ async def prune_pending(ctx):
                     f"Member {member.name}[{member.id}] cannot be kicked due to a permissions error."
                 )
                 continue
-            
+
             num_pruned += 1
             pruned.append(member)
 
@@ -1584,7 +1588,9 @@ async def ctx_reset_user(ctx, member: discord.Member):
         session.rollback()
 
     if user_count > 0:
-        await ctx.respond(f"Dropped row for user with ID in table Users: {member.id}", ephemeral=True)
+        await ctx.respond(
+            f"Dropped row for user with ID in table Users: {member.id}", ephemeral=True
+        )
     else:
         await ctx.respond(
             f"No database row exists in table Users for user {member.name}[{member.id}], nothing to drop.",
@@ -2136,6 +2142,22 @@ async def on_guild_channel_update(
             Log.warning(
                 f"Category {before.id} was updated but is not associated with a role in cache. This could be an error."
             )
+
+
+@bot.event
+async def on_application_command_error(
+    ctx: discord.ApplicationContext, error: discord.DiscordException
+):
+    if isinstance(error, discord.ext.commands.errors.MissingPermissions):
+        Log.warning(
+            f"User {ctx.user.name}[{ctx.user.id}] tried to use a command ('{ctx.command.qualified_name}') they're not allowed to."
+        )
+        await ctx.respond(
+            "Sorry, you don't have permission to run that command.", ephemeral=True
+        )
+    else:
+        Log.error("Unknown error thrown, propagating:")
+        raise error
 
 
 @bot.event
