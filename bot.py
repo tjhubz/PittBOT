@@ -3,6 +3,7 @@
 import os
 from sqlite3 import IntegrityError
 from urllib.request import urlopen
+from enum import Enum
 import discord
 import discord.ext
 from discord.ui import Button, View, Modal, InputText
@@ -1563,35 +1564,47 @@ async def auto_link(ctx):
     await ctx.respond(content=message_content, ephemeral=True)
 
 
-@bot.slash_command(description="Display information about how to print at Pitt.")
-async def print(ctx):
-    await ctx.response.send_message(
-        "You can upload print jobs at https://print.pitt.edu/" 
-            + ". All you have to do is upload your file to the website and then choose the job settings"
-            + " at the bottom right.\n"
-            + "\n A full list of University printers and their locations is available here: https://www.technology.pitt.edu/services/pitt-print#locations"
-    )
+# create enum of faq topics
+class Topic(Enum):
+    PRINT = "You can upload print jobs at https://print.pitt.edu/. All you have to do is upload your file to the website and then choose the job settings at the bottom right.\n\n A full list of University printers and their locations is available here: https://www.technology.pitt.edu/services/pitt-print#locations"
+    DINING_DOLLARS = "This is a list of off-campus vendors that accept Pitt Dining Dollars: https://dineoncampus.com/pitt/offcampus-vendors"
+    PANTHER_FUNDS = "You can add Panther Funds to your Pitt account using this link: https://bit.ly/PowerYourPantherCard"
+    DINING_HOURS = "The hours of operation for campus eateries are located here: https://dineoncampus.com/pitt/hours-of-operation"
+
+@bot.slash_command(description="Find answers to frequently asked questions.")
+async def faq(ctx, topic: discord.Option(Topic, "Question to answer")):
+    Log.info(f"passed topic is {topic}")
+    await ctx.response.send_message(topic.value)
+
+# @bot.slash_command(description="Display information about how to print at Pitt.")
+# async def print(ctx):
+#     await ctx.response.send_message(
+#         "You can upload print jobs at https://print.pitt.edu/" 
+#             + ". All you have to do is upload your file to the website and then choose the job settings"
+#             + " at the bottom right.\n"
+#             + "\n A full list of University printers and their locations is available here: https://www.technology.pitt.edu/services/pitt-print#locations"
+#     )
 
 
-@bot.slash_command(description="Display a list of off-campus vendors that accept dining dollars.")
-async def dining_dollars(ctx):
-    await ctx.response.send_message(
-        "This is a list of off-campus vendors that accept Pitt Dining Dollars: https://dineoncampus.com/pitt/offcampus-vendors"
-    )
+# @bot.slash_command(description="Display a list of off-campus vendors that accept dining dollars.")
+# async def dining_dollars(ctx):
+#     await ctx.response.send_message(
+#         "This is a list of off-campus vendors that accept Pitt Dining Dollars: https://dineoncampus.com/pitt/offcampus-vendors"
+#     )
 
 
-@bot.slash_command(description="Display a list of off-campus vendors that accept dining dollars.")
-async def panther_funds(ctx):
-    await ctx.response.send_message(
-        "You can add Panther Funds to your Pitt account using this link: https://bit.ly/PowerYourPantherCard"
-    )
+# @bot.slash_command(description="Display a list of off-campus vendors that accept dining dollars.")
+# async def panther_funds(ctx):
+#     await ctx.response.send_message(
+#         "You can add Panther Funds to your Pitt account using this link: https://bit.ly/PowerYourPantherCard"
+#     )
 
 
-@bot.slash_command(description="Display a list of off-campus vendors that accept dining dollars.")
-async def dining_hours(ctx):
-    await ctx.response.send_message(
-        "The hours of operation for campus eateries are located here: https://dineoncampus.com/pitt/hours-of-operation"
-    )
+# @bot.slash_command(description="Display a list of off-campus vendors that accept dining dollars.")
+# async def dining_hours(ctx):
+#     await ctx.response.send_message(
+#         "The hours of operation for campus eateries are located here: https://dineoncampus.com/pitt/hours-of-operation"
+#     )
 
 # ------------------------------- CONTEXT MENU COMMANDS -------------------------------
 
