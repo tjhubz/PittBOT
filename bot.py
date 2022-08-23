@@ -1562,15 +1562,36 @@ async def auto_link(ctx):
 
     await ctx.respond(content=message_content, ephemeral=True)
 
+
 @bot.slash_command(description="Display information about how to print at Pitt.")
 async def print(ctx):
     await ctx.response.send_message(
         "You can upload print jobs at https://print.pitt.edu/" 
-            + ". All you have to do is upload your file to the website and select whether you want"
-            + " it to print in color or black and white.\n"
-            + "\n A full list of printers and their locations is available here: https://www.technology.pitt.edu/services/pitt-print#locations"
+            + ". All you have to do is upload your file to the website and then choose the job settings"
+            + " at the bottom right.\n"
+            + "\n A full list of University printers and their locations is available here: https://www.technology.pitt.edu/services/pitt-print#locations"
     )
 
+
+@bot.slash_command(description="Display a list of off-campus vendors that accept dining dollars.")
+async def dining_dollars(ctx):
+    await ctx.response.send_message(
+        "This is a list of off-campus vendors that accept Pitt Dining Dollars: https://dineoncampus.com/pitt/offcampus-vendors"
+    )
+
+
+@bot.slash_command(description="Display a list of off-campus vendors that accept dining dollars.")
+async def panther_funds(ctx):
+    await ctx.response.send_message(
+        "You can add Panther Funds to your Pitt account using this link: https://bit.ly/PowerYourPantherCard"
+    )
+
+
+@bot.slash_command(description="Display a list of off-campus vendors that accept dining dollars.")
+async def dining_hours(ctx):
+    await ctx.response.send_message(
+        "The hours of operation for campus eateries are located here: https://dineoncampus.com/pitt/hours-of-operation"
+    )
 
 # ------------------------------- CONTEXT MENU COMMANDS -------------------------------
 
