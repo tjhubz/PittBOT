@@ -1564,17 +1564,28 @@ async def auto_link(ctx):
     await ctx.respond(content=message_content, ephemeral=True)
 
 
-# create enum of faq topics
-class Topic(Enum):
-    PRINT = "You can upload print jobs at https://print.pitt.edu/. All you have to do is upload your file to the website and then choose the job settings at the bottom right.\n\n A full list of University printers and their locations is available here: https://www.technology.pitt.edu/services/pitt-print#locations"
-    DINING_DOLLARS = "This is a list of off-campus vendors that accept Pitt Dining Dollars: https://dineoncampus.com/pitt/offcampus-vendors"
-    PANTHER_FUNDS = "You can add Panther Funds to your Pitt account using this link: https://bit.ly/PowerYourPantherCard"
-    DINING_HOURS = "The hours of operation for campus eateries are located here: https://dineoncampus.com/pitt/hours-of-operation"
+# enumerate FAQ answer strings
+answer_list = [
+    "You can upload print jobs at https://print.pitt.edu/. All you have to do is upload your file to the website and then choose the job settings at the bottom right.\n\n A full list of University printers and their locations is available here: https://www.technology.pitt.edu/services/pitt-print#locations",
+    "This is a list of off-campus vendors that accept Pitt Dining Dollars: https://dineoncampus.com/pitt/offcampus-vendors",
+    "You can add Panther Funds to your Pitt account using this link: https://bit.ly/PowerYourPantherCard",
+    "The hours of operation for campus eateries are located here: https://dineoncampus.com/pitt/hours-of-operation"
+]
+
+# enumerate list of FAQ, with values serving as indices into the answer_list array
+topic_list = [
+    discord.OptionChoice("printing", "0"),
+    discord.OptionChoice("dining_dollars", "1"),
+    discord.OptionChoice("panther_funds", "2"),
+    discord.OptionChoice("dining_hours", "3")
+]
 
 @bot.slash_command(description="Find answers to frequently asked questions.")
-async def faq(ctx, topic: discord.Option(Topic, "Question to answer")):
-    Log.info(f"passed topic is {topic}")
-    await ctx.response.send_message(topic.value)
+async def faq(
+    ctx, 
+    topic: discord.Option(name = "topic", description = "Topic to provide details about", choices = topic_list)
+):
+    await ctx.response.send_message(answer_list[int(topic)])
 
 # @bot.slash_command(description="Display information about how to print at Pitt.")
 # async def print(ctx):
