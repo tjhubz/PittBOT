@@ -1570,7 +1570,7 @@ questions_and_answers = OrderedDict()
 
 # PLEASE KEEP KEYS IN ALPHABETICAL ORDER
 questions_and_answers["computer_labs"] = "The hours of operation for the University's computing labs are located here: https://www.technology.pitt.edu/services/student-computing-labs"
-questions_and_answers["covid"] = "Allegheny County's current COVID-19 community transmission level is located here: https://www.coronavirus.pitt.edu/\n\nMasking indoors is **required** when the community level is `High`."
+questions_and_answers["covid"] = "Information about vaccines and Pitt campuses' current COVID-19 levels can be found here: https://www.coronavirus.pitt.edu/\n\nMasking indoors is **required** when your campus's community level is `High`."
 questions_and_answers["dining_dollars"] = "This is a list of off-campus vendors that accept Pitt Dining Dollars: https://dineoncampus.com/pitt/offcampus-vendors"
 questions_and_answers["dining_hours"] = "The hours of operation for campus eateries are located here: https://dineoncampus.com/pitt/hours-of-operation"
 questions_and_answers["library_hours"] = "The hours of operation for University libraries are located here: https://www.library.pitt.edu/hours"
