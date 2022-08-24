@@ -1,5 +1,6 @@
 # pylint: disable=missing-class-docstring,missing-function-docstring
 
+from collections import OrderedDict
 import os
 from sqlite3 import IntegrityError
 from urllib.request import urlopen
@@ -1564,58 +1565,34 @@ async def auto_link(ctx):
     await ctx.respond(content=message_content, ephemeral=True)
 
 
-# enumerate FAQ answer strings
-answer_list = [
-    "You can upload print jobs at https://print.pitt.edu/. All you have to do is upload your file to the website and then choose the job settings at the bottom right.\n\n A full list of University printers and their locations is available here: https://www.technology.pitt.edu/services/pitt-print#locations",
-    "This is a list of off-campus vendors that accept Pitt Dining Dollars: https://dineoncampus.com/pitt/offcampus-vendors",
-    "You can add Panther Funds to your Pitt account using this link: https://bit.ly/PowerYourPantherCard",
-    "The hours of operation for campus eateries are located here: https://dineoncampus.com/pitt/hours-of-operation"
-]
+# initialize an ordered hashmap to store FAQs and their answers
+questions_and_answers = OrderedDict()
 
-# enumerate list of FAQ, with values serving as indices into the answer_list array
-topic_list = [
-    discord.OptionChoice("printing", "0"),
-    discord.OptionChoice("dining_dollars", "1"),
-    discord.OptionChoice("panther_funds", "2"),
-    discord.OptionChoice("dining_hours", "3")
-]
+
+# PLEASE KEEP KEYS IN ALPHABETICAL ORDER
+questions_and_answers["dining_dollars"] = "This is a list of off-campus vendors that accept Pitt Dining Dollars: https://dineoncampus.com/pitt/offcampus-vendors"
+questions_and_answers["dining_hours"] = "The hours of operation for campus eateries are located here: https://dineoncampus.com/pitt/hours-of-operation"
+questions_and_answers["panther_funds"] = "You can add Panther Funds to your Pitt account using this link: https://bit.ly/PowerYourPantherCard"
+questions_and_answers["printing"] = "You can upload print jobs at https://print.pitt.edu/. All you have to do is upload your file to the website and then choose the job settings at the bottom right.\n\n A full list of University printers and their locations is available here: https://www.technology.pitt.edu/services/pitt-print#locations"
+
+
+# generate an array of option choices using the hashmap's keys
+# (this is needed for pycord reasons)
+topic_list = []
+for topic in questions_and_answers.keys():
+    topic_list.append(discord.OptionChoice(topic))
+
 
 @bot.slash_command(description="Find answers to frequently asked questions.")
 async def faq(
     ctx, 
     topic: discord.Option(name = "topic", description = "Topic to provide details about", choices = topic_list)
 ):
-    await ctx.response.send_message(answer_list[int(topic)])
+    await ctx.response.send_message(questions_and_answers[topic])
 
-# @bot.slash_command(description="Display information about how to print at Pitt.")
-# async def print(ctx):
-#     await ctx.response.send_message(
-#         "You can upload print jobs at https://print.pitt.edu/" 
-#             + ". All you have to do is upload your file to the website and then choose the job settings"
-#             + " at the bottom right.\n"
-#             + "\n A full list of University printers and their locations is available here: https://www.technology.pitt.edu/services/pitt-print#locations"
-#     )
-
-
-# @bot.slash_command(description="Display a list of off-campus vendors that accept dining dollars.")
-# async def dining_dollars(ctx):
-#     await ctx.response.send_message(
-#         "This is a list of off-campus vendors that accept Pitt Dining Dollars: https://dineoncampus.com/pitt/offcampus-vendors"
-#     )
-
-
-# @bot.slash_command(description="Display a list of off-campus vendors that accept dining dollars.")
-# async def panther_funds(ctx):
-#     await ctx.response.send_message(
-#         "You can add Panther Funds to your Pitt account using this link: https://bit.ly/PowerYourPantherCard"
-#     )
-
-
-# @bot.slash_command(description="Display a list of off-campus vendors that accept dining dollars.")
-# async def dining_hours(ctx):
-#     await ctx.response.send_message(
-#         "The hours of operation for campus eateries are located here: https://dineoncampus.com/pitt/hours-of-operation"
-#     )
+# TODO: server-specific mailing addresses
+# @bot.slash_command(description="Display the generic mailing address format for the residence hall.")
+# async def mailing_addresss(ctx):
 
 # ------------------------------- CONTEXT MENU COMMANDS -------------------------------
 
