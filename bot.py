@@ -4,7 +4,6 @@ from collections import OrderedDict
 import os
 from sqlite3 import IntegrityError
 from urllib.request import urlopen
-from enum import Enum
 import discord
 import discord.ext
 from discord.ui import Button, View, Modal, InputText
@@ -1575,7 +1574,7 @@ questions_and_answers["dining_dollars"] = "This is a list of off-campus vendors 
 questions_and_answers["dining_hours"] = "The hours of operation for campus eateries are located here: https://dineoncampus.com/pitt/hours-of-operation"
 questions_and_answers["library_hours"] = "The hours of operation for University libraries are located here: https://www.library.pitt.edu/hours"
 questions_and_answers["panther_funds"] = "You can add Panther Funds to your Pitt account using this link: https://bit.ly/PowerYourPantherCard"
-questions_and_answers["printing"] = "You can upload print jobs at https://print.pitt.edu/. All you have to do is upload your file to the website and then choose the job settings at the bottom right.\n\n A full list of University printers and their locations is available here: https://www.technology.pitt.edu/services/pitt-print#locations"
+questions_and_answers["printing"] = "You can upload print jobs at https://print.pitt.edu/. All you have to do is upload your file to the website and then choose the job settings at the bottom right.\n\nA full list of University printers and their locations is available here: https://www.technology.pitt.edu/services/pitt-print#locations"
 
 
 # generate an array of discord option choices using the hashmap's keys
