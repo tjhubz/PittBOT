@@ -1570,11 +1570,14 @@ questions_and_answers = OrderedDict()
 
 # PLEASE KEEP KEYS IN ALPHABETICAL ORDER
 questions_and_answers["computer_labs"] = "The hours of operation for the University's computing labs are located here: https://www.technology.pitt.edu/services/student-computing-labs"
+questions_and_answers["covid"] = "Allegheny County's current COVID-19 community transmission level is located here: https://www.coronavirus.pitt.edu/\n\nMasking indoors is **required** when the community level is `High`."
 questions_and_answers["dining_dollars"] = "This is a list of off-campus vendors that accept Pitt Dining Dollars: https://dineoncampus.com/pitt/offcampus-vendors"
 questions_and_answers["dining_hours"] = "The hours of operation for campus eateries are located here: https://dineoncampus.com/pitt/hours-of-operation"
 questions_and_answers["library_hours"] = "The hours of operation for University libraries are located here: https://www.library.pitt.edu/hours"
 questions_and_answers["panther_funds"] = "You can add Panther Funds to your Pitt account using this link: https://bit.ly/PowerYourPantherCard"
+questions_and_answers["phone_numbers"] = "These are some important phone numbers:\n\n**Panther Central:** 412-648-1100\n**Pitt Police Emergency Line:** 412-624-2121\n**Pitt Police Non-Emergency Line:** 412-624-4040\n**Pitt Student Health Services:** 412-383-1800\n**Pittsburgh Action Against Rape 24/7 Helpline:** 1-866-363-7273\n**resolve Crisis Services:** 1-888-796-8226\n**SafeRider:** 412-648-2255\n**University Counseling Center:** 412-648-7930"
 questions_and_answers["printing"] = "You can upload print jobs at https://print.pitt.edu/. All you have to do is upload your file to the website and then choose the job settings at the bottom right.\n\nA full list of University printers and their locations is available here: https://www.technology.pitt.edu/services/pitt-print#locations"
+questions_and_answers["shuttle_schedule"] = "The schedule for Pitt's on-campus shuttles is located here: https://www.pts.pitt.edu/mobility/shuttle-services/pitt-shuttle-schedule"
 
 
 # generate an array of discord option choices using the hashmap's keys
