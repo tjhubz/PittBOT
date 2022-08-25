@@ -1,5 +1,6 @@
 # pylint: disable=missing-class-docstring,missing-function-docstring
 
+from collections import OrderedDict
 import os
 from sqlite3 import IntegrityError
 from urllib.request import urlopen
@@ -1566,6 +1567,38 @@ async def auto_link(ctx):
 
     await ctx.respond(content=message_content, ephemeral=True)
 
+
+# initialize an ordered hashmap to store FAQs and their answers
+questions_and_answers = OrderedDict()
+
+
+# PLEASE KEEP KEYS IN ALPHABETICAL ORDER
+questions_and_answers["computer_labs"] = ">>> The hours of operation for the University's computing labs are located here: \nhttps://www.technology.pitt.edu/services/student-computing-labs"
+questions_and_answers["covid"] = ">>> Information about vaccines and Pitt campuses' current COVID-19 levels can be found here: \nhttps://www.coronavirus.pitt.edu/\n\nMasking indoors is **required** when your campus's community level is `High`."
+questions_and_answers["dining_dollars"] = ">>> This is a list of off-campus vendors that accept Pitt Dining Dollars: \nhttps://dineoncampus.com/pitt/offcampus-vendors"
+questions_and_answers["dining_hours"] = ">>> The hours of operation for campus eateries are located here: \nhttps://dineoncampus.com/pitt/hours-of-operation"
+questions_and_answers["library_hours"] = ">>> The hours of operation for University libraries are located here: \nhttps://www.library.pitt.edu/hours"
+questions_and_answers["panther_funds"] = ">>> You can add Panther Funds to your Pitt account using this link: \nhttps://bit.ly/PowerYourPantherCard\n\nYou can also load funds and track the balance of all of your accounts by downloading the Transact eAccounts mobile app on iOS or Android."
+questions_and_answers["phone_numbers"] = ">>> These are some important phone numbers:\n\n**Panther Central:** 412-648-1100\n**Pitt Police Emergency Line:** 412-624-2121\n**Pitt Police Non-Emergency Line:** 412-624-4040\n**Pitt Student Health Services:** 412-383-1800\n**Pittsburgh Action Against Rape 24/7 Helpline:** 1-866-363-7273\n**resolve Crisis Services:** 1-888-796-8226\n**SafeRider:** 412-648-2255\n**University Counseling Center:** 412-648-7930"
+questions_and_answers["printing"] = ">>> You can upload print jobs at https://print.pitt.edu/. All you have to do is upload your file to the website and then choose the job settings at the bottom right.\n\nOnce your file is uploaded, simply go to a printer and swipe your Pitt ID. Remember, you must go to a color printer to print in color!\n\nA full list of University printers and their locations is available here: https://www.technology.pitt.edu/services/pitt-print#locations"
+questions_and_answers["shuttle_schedule"] = ">>> The schedule for Pitt's on-campus shuttles with real-time tracking can be found here: \nhttps://pittshuttle.com/"
+
+
+# generate an array of discord option choices using the hashmap's keys
+# (this is needed for the topic choices to display as options in discord when invoking /faq)
+topic_list = [discord.OptionChoice(topic) for topic in questions_and_answers.keys()]
+
+
+@bot.slash_command(description="Find answers to frequently asked questions.")
+async def faq(
+    ctx, 
+    topic: discord.Option(name = "topic", description = "Topic to provide details about", choices = topic_list)
+):
+    await ctx.response.send_message(questions_and_answers[topic])
+
+# TODO: server-specific mailing addresses
+# @bot.slash_command(description="Display the generic mailing address format for the residence hall.")
+# async def mailing_addresss(ctx):
 
 # ------------------------------- CONTEXT MENU COMMANDS -------------------------------
 
