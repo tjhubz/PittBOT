@@ -1,5 +1,6 @@
 # pylint: disable=missing-class-docstring,missing-function-docstring
 
+from collections import OrderedDict
 import os
 from sqlite3 import IntegrityError
 from typing import Sequence
@@ -326,7 +327,9 @@ class VerifyModal(Modal):
             session.commit()
         except:
             session.rollback()
-            Log.error(f"Could not save any database entries for {member.name}[{member.id}]. This is a critical DB error.")
+            Log.error(
+                f"Could not save any database entries for {member.name}[{member.id}]. This is a critical DB error."
+            )
 
         async def on_timeout(self):
             self.stop()
@@ -856,7 +859,7 @@ async def verify(ctx):
                     return
 
     # Begin ACTUAL VERIFICATION
-    
+
     # Ensure session is committed before leaving function
     try:
         session.commit()
@@ -980,7 +983,7 @@ async def make_categories(
             session.commit()
         except:
             session.rollback()
-            
+
         # Upload the file containing the links and ra names as an attachment, so they
         # can be distributed to the RAs to share.
         await ctx.send_followup(file=discord.File("ras-with-links.txt"))
@@ -1215,7 +1218,7 @@ async def set_user(
                 content="I don't have permission to modify this user's roles. Ensure that my bot role is higher on the role list than the user's highest role.",
                 ephemeral=True,
             )
-            
+
     try:
         user = session.query(DbUser).filter_by(ID=member.id).one()
         Log.ok(f"User {member.name} was in the database.")
@@ -1423,7 +1426,7 @@ async def reset_user(
                 ephemeral=True,
             )
             return
-        
+
     try:
         session.commit()
     except:
@@ -1487,7 +1490,9 @@ async def prune_pending(ctx):
                         f"Oh no! It looks like your verification period expired for the server {ctx.guild.name}. Please re-join with the invite your RA sent you and press the green verify button once you join."
                     )
                 except discord.Forbidden:
-                    Log.warning(f"Member {member.name}[{member.id}] does not allow DMs or creating a DM failed, could not notify them of prune.")
+                    Log.warning(
+                        f"Member {member.name}[{member.id}] does not allow DMs or creating a DM failed, could not notify them of prune."
+                    )
                     if logs_channel:
                         await logs_channel.send(
                             f"**WARNING**: Member {member.name}[{member.id}] does not allow DMs or creating a DM failed, could not notify them of prune."
@@ -1500,7 +1505,7 @@ async def prune_pending(ctx):
                     await logs_channel.send(
                         f"**WARNING**: Member {member.name}[{member.id}] does not allow DMs or creating a DM failed, could not notify them of prune."
                     )
-                    
+
             # Kick member
             try:
                 await member.kick(reason="Pruned for not initiating verification")
@@ -1509,7 +1514,7 @@ async def prune_pending(ctx):
                     f"Member {member.name}[{member.id}] cannot be kicked due to a permissions error."
                 )
                 continue
-            
+
             num_pruned += 1
             pruned.append(member)
 
@@ -1594,6 +1599,38 @@ async def auto_link(ctx):
     await ctx.respond(content=message_content, ephemeral=True)
 
 
+# initialize an ordered hashmap to store FAQs and their answers
+questions_and_answers = OrderedDict()
+
+
+# PLEASE KEEP KEYS IN ALPHABETICAL ORDER
+questions_and_answers["computer_labs"] = ">>> The hours of operation for the University's computing labs are located here: \nhttps://www.technology.pitt.edu/services/student-computing-labs"
+questions_and_answers["covid"] = ">>> Information about vaccines and Pitt campuses' current COVID-19 levels can be found here: \nhttps://www.coronavirus.pitt.edu/\n\nMasking indoors is **required** when your campus's community level is `High`."
+questions_and_answers["dining_dollars"] = ">>> This is a list of off-campus vendors that accept Pitt Dining Dollars: \nhttps://dineoncampus.com/pitt/offcampus-vendors"
+questions_and_answers["dining_hours"] = ">>> The hours of operation for campus eateries are located here: \nhttps://dineoncampus.com/pitt/hours-of-operation"
+questions_and_answers["library_hours"] = ">>> The hours of operation for University libraries are located here: \nhttps://www.library.pitt.edu/hours"
+questions_and_answers["panther_funds"] = ">>> You can add Panther Funds to your Pitt account using this link: \nhttps://bit.ly/PowerYourPantherCard\n\nYou can also load funds and track the balance of all of your accounts by downloading the Transact eAccounts mobile app on iOS or Android."
+questions_and_answers["phone_numbers"] = ">>> These are some important phone numbers:\n\n**Panther Central:** 412-648-1100\n**Pitt Police Emergency Line:** 412-624-2121\n**Pitt Police Non-Emergency Line:** 412-624-4040\n**Pitt Student Health Services:** 412-383-1800\n**Pittsburgh Action Against Rape 24/7 Helpline:** 1-866-363-7273\n**resolve Crisis Services:** 1-888-796-8226\n**SafeRider:** 412-648-2255\n**University Counseling Center:** 412-648-7930"
+questions_and_answers["printing"] = ">>> You can upload print jobs at https://print.pitt.edu/. All you have to do is upload your file to the website and then choose the job settings at the bottom right.\n\nOnce your file is uploaded, simply go to a printer and swipe your Pitt ID. Remember, you must go to a color printer to print in color!\n\nA full list of University printers and their locations is available here: https://www.technology.pitt.edu/services/pitt-print#locations"
+questions_and_answers["shuttle_schedule"] = ">>> The schedule for Pitt's on-campus shuttles with real-time tracking can be found here: \nhttps://pittshuttle.com/"
+
+
+# generate an array of discord option choices using the hashmap's keys
+# (this is needed for the topic choices to display as options in discord when invoking /faq)
+topic_list = [discord.OptionChoice(topic) for topic in questions_and_answers.keys()]
+
+
+@bot.slash_command(description="Find answers to frequently asked questions.")
+async def faq(
+    ctx, 
+    topic: discord.Option(name = "topic", description = "Topic to provide details about", choices = topic_list)
+):
+    await ctx.response.send_message(questions_and_answers[topic])
+
+# TODO: server-specific mailing addresses
+# @bot.slash_command(description="Display the generic mailing address format for the residence hall.")
+# async def mailing_addresss(ctx):
+
 # ------------------------------- CONTEXT MENU COMMANDS -------------------------------
 
 
@@ -1615,7 +1652,9 @@ async def ctx_reset_user(ctx, member: discord.Member):
         session.rollback()
 
     if user_count > 0:
-        await ctx.respond(f"Dropped row for user with ID in table Users: {member.id}", ephemeral=True)
+        await ctx.respond(
+            f"Dropped row for user with ID in table Users: {member.id}", ephemeral=True
+        )
     else:
         await ctx.respond(
             f"No database row exists in table Users for user {member.name}[{member.id}], nothing to drop.",
@@ -2271,6 +2310,22 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
                 f'An emojis name was changed from {old_emoji.name} to {new_emoji.name} in Guild {guild.name}. Would you like to sync this change?',
                 view=EmojiSyncView(emoji=new_emoji, old_emoji=old_emoji, mod_type='Name')
             )
+
+@bot.event
+async def on_application_command_error(
+    ctx: discord.ApplicationContext, error: discord.DiscordException
+):
+    if isinstance(error, discord.ext.commands.errors.MissingPermissions):
+        Log.warning(
+            f"User {ctx.user.name}[{ctx.user.id}] tried to use a command ('{ctx.command.qualified_name}') they're not allowed to."
+        )
+        await ctx.respond(
+            "Sorry, you don't have permission to run that command.", ephemeral=True
+        )
+    else:
+        Log.error("Unknown error thrown, propagating:")
+        raise error
+
 
 @bot.event
 async def on_ready():
