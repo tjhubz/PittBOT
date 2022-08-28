@@ -108,6 +108,9 @@ user_to_assigned_invite = {}
 # Assigned roles associativity
 user_to_assigned_role = {}
 
+# Cache of emojis that were modified/deleted during a current synchronization
+synced_emoji_cache = []
+
 # ------------------------------- CLASSES -------------------------------
 
 
@@ -393,10 +396,10 @@ class CommunitySelectView(discord.ui.View):
 
 class EmojiSyncView(discord.ui.View):
     # Might be able to delete guild reference
-    def __init__(self, emoji, mod_type: str, old_name=None, *args, **kwargs):
+    def __init__(self, emoji, mod_type: str, old_emoji=None, *args, **kwargs):
         super().__init__(timeout=None, *args, **kwargs)
         self.emoji = emoji
-        self.old_name = old_name
+        self.old_emoji = old_emoji
         
         # Mod type will be a String of 'Add', 'Del', or 'Name' 
         self.mod_type = mod_type
@@ -408,14 +411,14 @@ class EmojiSyncView(discord.ui.View):
         elif self.mod_type == 'Del':
             await sync_delete(bot=bot, emoji=self.emoji)
         else:
-            await sync_name(bot=bot, old_name=self.old_name, new_emoji=self.emoji)
+            await sync_name(bot=bot, old_emoji=self.old_emoji, new_emoji=self.emoji)
 
-        await interaction.response.edit_message('Okay! I will sync this now.', view=None, delete_after=60)
+        await interaction.response.edit_message(content='Okay! I will sync this now.', view=None, delete_after=60)
 
     @discord.ui.button(label='Deny', style=discord.ButtonStyle.red)
     async def deny_callback(self, button, interaction: discord.Interaction):
         # Do nothing!
-        await interaction.response.edit_message('Okay! This change will not be synced.', view=None, delete_after=60)
+        await interaction.response.edit_message(content='Okay! This change will not be synced.', view=None, delete_after=60)
         return
 
 class UnsetupConfirmation(discord.ui.Modal):
@@ -2180,6 +2183,10 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
         if not emoji:
             Log.error('find() returned None on detected added emoji')
             return
+
+        # Check that the change was not due to synchronization
+        if emoji.user.id == bot.user.id:
+            return
         
         # Automatically sync throughout all guilds if made in control
         if changed_in_hub:
@@ -2187,7 +2194,7 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
             
         # Send View and wait for acceptance or denial
         else:
-            # TODO: Format based on desired goals
+            # Send the view in the commands server
             await bot_commands.send(
                 f'An emoji, {emoji.name} with the appearence {emoji} has been added to Guild {guild.name} Would you like to sync this change?', 
                 view=EmojiSyncView(emoji=emoji, mod_type='Add')
@@ -2198,6 +2205,10 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
         emoji = discord.utils.find(lambda e: e not in after, before)
         if not emoji:
             Log.error('find() returned None on detected deleted emoji')
+            return
+
+        # Check that the change was not due to synchronization
+        if hash(emoji) in synced_emoji_cache:
             return
         
         # Auto-sync
@@ -2224,29 +2235,33 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
     # Rename
     else:
         # Find out what emoji changed
-        old_name = None
+        old_emoji = None
         new_emoji = None
         for pre_emoji in before:
-            for post_emoji in after:            # TODO: May be a more pythonic way to do this
+            for post_emoji in after:
                 if pre_emoji == post_emoji and pre_emoji.name != post_emoji.name:
-                    old_name = pre_emoji.name
+                    old_emoji = pre_emoji
                     new_emoji = post_emoji
                     break
 
         # Confirm that we found a name change, if not log an error
-        if not old_name or not new_emoji:
+        if not old_emoji or not new_emoji:
             Log.error('Registered emoji name change but no change found')
+            return
+
+        # Check that the change was not due to synchronization
+        if hash(old_emoji) in synced_emoji_cache:
             return
 
         # Check if auto-sync is needed
         if changed_in_hub:
-            await sync_name(bot=bot, old_name=old_name, new_emoji=new_emoji)
+            await sync_name(bot=bot, old_emoji=old_emoji, new_emoji=new_emoji)
 
         # Send view asking if the change should be synced
         else:
             await bot_commands.send(
-                f'An emojis name was changed from {old_name} to {new_emoji.name} in Guild {guild.name}. Would you like to sync this change?',
-                view=EmojiSyncView(emoji=new_emoji, old_name=old_name, mod_type='Name')
+                f'An emojis name was changed from {old_emoji.name} to {new_emoji.name} in Guild {guild.name}. Would you like to sync this change?',
+                view=EmojiSyncView(emoji=new_emoji, old_emoji=old_emoji, mod_type='Name')
             )
 
 
