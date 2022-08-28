@@ -2212,7 +2212,7 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
             try:
                 synced_emoji_cache.remove(hash(emoji))
             except:
-                Log.error(f'Detected {emoji.name} hash in synced cache but could not remove')
+                Log.error(f'Detected {emoji.name} hash in synced cache but remove() failed')
             return
         
         # Auto-sync
@@ -2258,7 +2258,7 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
             try:
                 synced_emoji_cache.remove(hash(old_emoji))
             except:
-                Log.error(f'Detected {old_emoji.name} hash in synced cache but could not remove')
+                Log.error(f'Detected {old_emoji.name} hash in synced cache but remove() failed')
             return
 
         # Check if auto-sync is needed
@@ -2271,7 +2271,6 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
                 f'An emojis name was changed from {old_emoji.name} to {new_emoji.name} in Guild {guild.name}. Would you like to sync this change?',
                 view=EmojiSyncView(emoji=new_emoji, old_emoji=old_emoji, mod_type='Name')
             )
-
 
 @bot.event
 async def on_ready():

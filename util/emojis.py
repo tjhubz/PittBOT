@@ -2,7 +2,6 @@
 Utility functions for handling of emoji synchronization across guilds
 '''
 
-from tkinter import Image
 import discord
 from .log import Log
 
@@ -55,11 +54,11 @@ async def sync_delete(cache, bot: discord.Bot, emoji: discord.Emoji):
 
 async def sync_name(cache, bot: discord.Bot, old_emoji: discord.Emoji, new_emoji: discord.Emoji):
     for guild in bot.guilds:
-        
+
         # Check the guild for an emoji with the same name
         guild_emojis = await guild.fetch_emojis()
         for emoji in guild_emojis:
-            
+
             # If the name matches, update it and move on to the next guild
             if emoji.name == old_emoji.name:
                 # Add hash code so that it is present in the cache when the event fires
