@@ -415,9 +415,9 @@ class EmojiSyncView(discord.ui.View):
         if self.mod_type == 'Add':
             await sync_add(bot=bot, emoji=self.emoji)
         elif self.mod_type == 'Del':
-            await sync_delete(bot=bot, emoji=self.emoji)
+            await sync_delete(cache=synced_emoji_cache, bot=bot, emoji=self.emoji)
         else:
-            await sync_name(bot=bot, old_emoji=self.old_emoji, new_emoji=self.emoji)
+            await sync_name(cache=synced_emoji_cache, bot=bot, old_emoji=self.old_emoji, new_emoji=self.emoji)
 
     @discord.ui.button(label='Deny', style=discord.ButtonStyle.red)
     async def deny_callback(self, button, interaction: discord.Interaction):
