@@ -409,6 +409,9 @@ class EmojiSyncView(discord.ui.View):
 
     @discord.ui.button(label='Accept', style=discord.ButtonStyle.green)
     async def accept_callback(self, button, interaction: discord.Interaction):
+        await interaction.response.edit_message(content='Okay! I will sync this now.', view=None, delete_after=60)
+
+        # Do the operation
         if self.mod_type == 'Add':
             await sync_add(bot=bot, emoji=self.emoji)
         elif self.mod_type == 'Del':
@@ -416,13 +419,10 @@ class EmojiSyncView(discord.ui.View):
         else:
             await sync_name(bot=bot, old_emoji=self.old_emoji, new_emoji=self.emoji)
 
-        await interaction.response.edit_message(content='Okay! I will sync this now.', view=None, delete_after=60)
-
     @discord.ui.button(label='Deny', style=discord.ButtonStyle.red)
     async def deny_callback(self, button, interaction: discord.Interaction):
         # Do nothing!
         await interaction.response.edit_message(content='Okay! This change will not be synced.', view=None, delete_after=60)
-        return
 
 class UnsetupConfirmation(discord.ui.Modal):
     def __init__(self, *args, **kwargs):
@@ -2256,7 +2256,7 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
         
         # Auto-sync
         if changed_in_hub:
-            await sync_delete(bot=bot, emoji=emoji)
+            await sync_delete(cache=synced_emoji_cache, bot=bot, emoji=emoji)
 
         # Send View and wait for acceptance or denial
         else:
@@ -2302,7 +2302,7 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
 
         # Check if auto-sync is needed
         if changed_in_hub:
-            await sync_name(bot=bot, old_emoji=old_emoji, new_emoji=new_emoji)
+            await sync_name(cache=synced_emoji_cache, bot=bot, old_emoji=old_emoji, new_emoji=new_emoji)
 
         # Send view asking if the change should be synced
         else:
