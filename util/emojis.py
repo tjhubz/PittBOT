@@ -29,8 +29,6 @@ async def sync_add(bot: discord.Bot, emoji: discord.Emoji):
             continue
 
 async def sync_delete(cache, bot: discord.Bot, emoji: discord.Emoji):
-    synched_emojis = []
-
     for guild in bot.guilds:
         guild_emojis = await guild.fetch_emojis()
         del_emoji = None
@@ -48,19 +46,14 @@ async def sync_delete(cache, bot: discord.Bot, emoji: discord.Emoji):
                 # Add hash code so that it is present in the cache when the event fires
                 hash_code = hash(del_emoji)
                 cache.append(hash_code)
-                synched_emojis.append(hash_code)
 
                 await del_emoji.delete()
                 Log.ok(f'Emoji: {emoji.name} in {guild.name} successfully deleted')
             except:
                 Log.warning(f'Could not delete emoji {emoji.name} in {guild.name}')
                 continue
-    
-    cache = [code for code in cache if code not in synched_emojis]
 
 async def sync_name(cache, bot: discord.Bot, old_emoji: discord.Emoji, new_emoji: discord.Emoji):
-    synched_emojis = []
-
     for guild in bot.guilds:
         
         # Check the guild for an emoji with the same name
@@ -68,15 +61,11 @@ async def sync_name(cache, bot: discord.Bot, old_emoji: discord.Emoji, new_emoji
         for emoji in guild_emojis:
             
             # If the name matches, update it and move on to the next guild
-            if emoji.name == old_emoji.name:  # TODO: Check if we should check that the image is the same
+            if emoji.name == old_emoji.name:
                 # Add hash code so that it is present in the cache when the event fires
                 hash_code = hash(emoji)
                 cache.append(hash_code)
-                synched_emojis.append(hash_code)
 
                 await emoji.edit(name=new_emoji.name)
                 Log.ok(f'Updated emoji name {old_emoji.name} to {new_emoji.name} in guild {guild.id}')
                 break
-
-    cache = [code for code in cache if code not in synched_emojis]
-

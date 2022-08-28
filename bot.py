@@ -2209,6 +2209,10 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
 
         # Check that the change was not due to synchronization
         if hash(emoji) in synced_emoji_cache:
+            try:
+                synced_emoji_cache.remove(hash(emoji))
+            except:
+                Log.error(f'Detected {emoji.name} hash in synced cache but could not remove')
             return
         
         # Auto-sync
@@ -2251,6 +2255,10 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
 
         # Check that the change was not due to synchronization
         if hash(old_emoji) in synced_emoji_cache:
+            try:
+                synced_emoji_cache.remove(hash(old_emoji))
+            except:
+                Log.error(f'Detected {old_emoji.name} hash in synced cache but could not remove')
             return
 
         # Check if auto-sync is needed
