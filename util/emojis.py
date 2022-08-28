@@ -27,7 +27,7 @@ async def sync_add(bot: discord.Bot, emoji: discord.Emoji):
             Log.warning(f'Could not create emoji {emoji.name} in {guild.name}')
             continue
 
-async def sync_delete(cache, bot: discord.Bot, emoji: discord.Emoji):
+async def sync_delete(cache: set, bot: discord.Bot, emoji: discord.Emoji):
     for guild in bot.guilds:
         guild_emojis = await guild.fetch_emojis()
         del_emoji = None
@@ -42,9 +42,8 @@ async def sync_delete(cache, bot: discord.Bot, emoji: discord.Emoji):
             # Delete the emoji in the server if possible
             # Could be forbidden to delete the emoji or get HTTP Exception
             try:
-                # Add hash code so that it is present in the cache when the event fires
-                hash_code = hash(del_emoji)
-                cache.append(hash_code)
+                # Add the emoji object to the cache
+                cache.add(del_emoji)
 
                 await del_emoji.delete()
                 Log.ok(f'Emoji: {emoji.name} in {guild.name} successfully deleted')
@@ -52,7 +51,7 @@ async def sync_delete(cache, bot: discord.Bot, emoji: discord.Emoji):
                 Log.warning(f'Could not delete emoji {emoji.name} in {guild.name}')
                 continue
 
-async def sync_name(cache, bot: discord.Bot, old_emoji: discord.Emoji, new_emoji: discord.Emoji):
+async def sync_name(cache: set, bot: discord.Bot, old_emoji: discord.Emoji, new_emoji: discord.Emoji):
     for guild in bot.guilds:
 
         # Check the guild for an emoji with the same name
@@ -61,9 +60,8 @@ async def sync_name(cache, bot: discord.Bot, old_emoji: discord.Emoji, new_emoji
 
             # If the name matches, update it and move on to the next guild
             if emoji.name == old_emoji.name:
-                # Add hash code so that it is present in the cache when the event fires
-                hash_code = hash(emoji)
-                cache.append(hash_code)
+                # Add the emoji object to the cache
+                cache.add(old_emoji)
 
                 await emoji.edit(name=new_emoji.name)
                 Log.ok(f'Updated emoji name {old_emoji.name} to {new_emoji.name} in guild {guild.id}')

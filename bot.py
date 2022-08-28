@@ -110,7 +110,7 @@ user_to_assigned_invite = {}
 user_to_assigned_role = {}
 
 # Cache of emojis that were modified/deleted during a current synchronization
-synced_emoji_cache = []
+synced_emoji_cache = set()
 
 # ------------------------------- CLASSES -------------------------------
 
@@ -2247,11 +2247,11 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
             return
 
         # Check that the change was not due to synchronization
-        if hash(emoji) in synced_emoji_cache:
+        if emoji in synced_emoji_cache:
             try:
-                synced_emoji_cache.remove(hash(emoji))
-            except:
-                Log.error(f'Detected {emoji.name} hash in synced cache but remove() failed')
+                synced_emoji_cache.remove(emoji)
+            except KeyError:
+                Log.error(f'Detected {emoji.name} synced cache but remove() failed')
             return
         
         # Auto-sync
@@ -2293,11 +2293,11 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
             return
 
         # Check that the change was not due to synchronization
-        if hash(old_emoji) in synced_emoji_cache:
+        if old_emoji in synced_emoji_cache:
             try:
-                synced_emoji_cache.remove(hash(old_emoji))
-            except:
-                Log.error(f'Detected {old_emoji.name} hash in synced cache but remove() failed')
+                synced_emoji_cache.remove(old_emoji)
+            except KeyError:
+                Log.error(f'Detected {old_emoji.name} in synced cache but remove() failed')
             return
 
         # Check if auto-sync is needed
