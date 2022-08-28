@@ -2210,6 +2210,8 @@ async def on_guild_channel_update(
 @bot.event
 async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.Emoji], after: Sequence[discord.Emoji]):
     bot_commands = bot.get_channel(BOT_COMMANDS_ID)
+    hub = bot.get_guild(HUB_SERVER_ID)
+    hub_emojis = await hub.fetch_emojis()
 
     # Determine if change was made in control server
     changed_in_hub = guild.id == HUB_SERVER_ID
@@ -2229,7 +2231,8 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
         
         # Automatically sync throughout all guilds if made in control
         if changed_in_hub:
-            await sync_add(bot=bot, emoji=emoji)
+            await bot_commands.send(content=f'Synching {emoji.name}, {emoji}, across Guilds')
+            await sync_add(bot=bot, emoji=emoji)            
             
         # Send View and wait for acceptance or denial
         else:
@@ -2256,19 +2259,19 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
         
         # Auto-sync
         if changed_in_hub:
+            await bot_commands.send(content=f'Synching deletion of {emoji.name}, {emoji}, across all Guilds')
             await sync_delete(cache=synced_emoji_cache, bot=bot, emoji=emoji)
-
+            
         # Send View and wait for acceptance or denial
         else:
             # Check that the emoji is a synced emoji among guild
             synced = False
-            hub = bot.get_guild(HUB_SERVER_ID)
-            hub_emojis = hub.fetch_emojis
             for hub_emoji in hub_emojis:
                 if hub_emoji.name == emoji.name:
                     synced = True
                     break
             
+            # If the emoji is a synced emoji, send the View, else we do not have to do anything
             if synced:
                 await bot_commands.send(
                             f'An emoji, {emoji.name} with the appearence {emoji} has been deleted from Guild {guild.name}, Would you like to sync this change?',
@@ -2302,14 +2305,23 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
 
         # Check if auto-sync is needed
         if changed_in_hub:
+            await bot_commands.send(content=f'Syncing name change of {old_emoji.name} to {new_emoji.name} across all Guilds')
             await sync_name(cache=synced_emoji_cache, bot=bot, old_emoji=old_emoji, new_emoji=new_emoji)
 
         # Send view asking if the change should be synced
         else:
-            await bot_commands.send(
-                f'An emojis name was changed from {old_emoji.name} to {new_emoji.name} in Guild {guild.name}. Would you like to sync this change?',
-                view=EmojiSyncView(emoji=new_emoji, old_emoji=old_emoji, mod_type='Name')
-            )
+            synced = False
+            for hub_emoji in hub_emojis:
+                if hub_emoji.name == old_emoji.name:
+                    synced = True
+                    break
+            
+            # If the emoji is a synced emoji, send the View, else we do not have to do anything
+            if synced:
+                await bot_commands.send(
+                    f'An emojis name was changed from {old_emoji.name} to {new_emoji.name} in Guild {guild.name}. Would you like to sync this change?',
+                    view=EmojiSyncView(emoji=new_emoji, old_emoji=old_emoji, mod_type='Name')
+                )
 
 @bot.event
 async def on_application_command_error(
