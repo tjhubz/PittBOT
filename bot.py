@@ -409,7 +409,7 @@ class EmojiSyncView(discord.ui.View):
 
     @discord.ui.button(label='Accept', style=discord.ButtonStyle.green)
     async def accept_callback(self, button, interaction: discord.Interaction):
-        await interaction.response.edit_message(content='Okay! I will sync this now.', view=None, delete_after=60)
+        await interaction.response.edit_message(content='Okay! I will sync this now.', view=None, delete_after=LONG_DELETE_TIME)
 
         # Do the operation
         if self.mod_type == 'Add':
@@ -422,7 +422,7 @@ class EmojiSyncView(discord.ui.View):
     @discord.ui.button(label='Deny', style=discord.ButtonStyle.red)
     async def deny_callback(self, button, interaction: discord.Interaction):
         # Do nothing!
-        await interaction.response.edit_message(content='Okay! This change will not be synced.', view=None, delete_after=60)
+        await interaction.response.edit_message(content='Okay! This change will not be synced.', view=None, delete_after=LONG_DELETE_TIME)
 
 class UnsetupConfirmation(discord.ui.Modal):
     def __init__(self, *args, **kwargs):
