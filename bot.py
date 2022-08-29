@@ -413,7 +413,7 @@ class EmojiSyncView(discord.ui.View):
 
         # Do the operation
         if self.mod_type == 'Add':
-            await sync_add(bot=bot, emoji=self.emoji)
+            await sync_add(cache=synced_emoji_cache, bot=bot, emoji=self.emoji)
         elif self.mod_type == 'Del':
             await sync_delete(cache=synced_emoji_cache, bot=bot, emoji=self.emoji)
         else:
@@ -2226,13 +2226,17 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
             return
 
         # Check that the change was not due to synchronization
-        if emoji.user.id == bot.user.id:
+        if emoji in synced_emoji_cache:
+            try:
+                synced_emoji_cache.remove(emoji)
+            except KeyError:
+                Log.error(f'Detected {emoji.name} synced cache but remove() failed')
             return
         
         # Automatically sync throughout all guilds if made in control
         if changed_in_hub:
             await bot_commands.send(content=f'Synching {emoji.name}, {emoji}, across Guilds')
-            await sync_add(bot=bot, emoji=emoji)            
+            await sync_add(cache=synced_emoji_cache, bot=bot, emoji=emoji)            
             
         # Send View and wait for acceptance or denial
         else:

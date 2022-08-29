@@ -5,7 +5,7 @@ Utility functions for handling of emoji synchronization across guilds
 import discord
 from .log import Log
 
-async def sync_add(bot: discord.Bot, emoji: discord.Emoji):
+async def sync_add(cache: set, bot: discord.Bot, emoji: discord.Emoji):
     for guild in bot.guilds:
         # Check if this emoji already exists
         guild_emojis = await guild.fetch_emojis()
@@ -19,8 +19,9 @@ async def sync_add(bot: discord.Bot, emoji: discord.Emoji):
         if exists:
             continue
 
-        # Create emoji
+        # Create emoji and add it to the cache
         try:
+            cache.add(emoji)
             await guild.create_custom_emoji(name=emoji.name, image=await emoji.read())
             Log.ok(f'Emoji: {emoji.name} successfully added in {guild.name}')
         except:
