@@ -2235,7 +2235,7 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
         
         # Automatically sync throughout all guilds if made in control
         if changed_in_hub:
-            await bot_commands.send(content=f'Synching {emoji.name}, {emoji}, across Guilds')
+            await bot_commands.send(content=f'Synching {emoji.name}, {emoji}, across Guilds', delete_after=LONG_DELETE_TIME)
             await sync_add(cache=synced_emoji_cache, bot=bot, emoji=emoji)            
             
         # Send View and wait for acceptance or denial
@@ -2263,7 +2263,7 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
         
         # Auto-sync
         if changed_in_hub:
-            await bot_commands.send(content=f'Synching deletion of {emoji.name}, {emoji}, across all Guilds')
+            await bot_commands.send(content=f'Synching deletion of {emoji.name}, {emoji}, across all Guilds', delete_after=LONG_DELETE_TIME)
             await sync_delete(cache=synced_emoji_cache, bot=bot, emoji=emoji)
             
         # Send View and wait for acceptance or denial
@@ -2309,7 +2309,7 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
 
         # Check if auto-sync is needed
         if changed_in_hub:
-            await bot_commands.send(content=f'Syncing name change of {old_emoji.name} to {new_emoji.name} across all Guilds')
+            await bot_commands.send(content=f'Syncing name change of {old_emoji.name} to {new_emoji.name} across all Guilds', delete_after=LONG_DELETE_TIME)
             await sync_name(cache=synced_emoji_cache, bot=bot, old_emoji=old_emoji, new_emoji=new_emoji)
 
         # Send view asking if the change should be synced

@@ -5,6 +5,8 @@ Utility functions for handling of emoji synchronization across guilds
 import discord
 from .log import Log
 
+HUB_SERVER_ID = 996607138803748954
+
 async def sync_add(cache: set, bot: discord.Bot, emoji: discord.Emoji):
     for guild in bot.guilds:
         # Check if this emoji already exists
@@ -18,11 +20,19 @@ async def sync_add(cache: set, bot: discord.Bot, emoji: discord.Emoji):
         # If the emoji exists, we can skip creation
         if exists:
             continue
-
-        # Create emoji and add it to the cache
+ 
         try:
+            # Create emoji and add it to the cache
             created_emoji = await guild.create_custom_emoji(name=emoji.name, image=await emoji.read())
             cache.add(created_emoji)
+            
+            # Send confirmation to logs channel 
+            logs = discord.utils.get(guild.channels, name="logs")
+            if not logs:
+                Log.error(f'No logs channel in {guild.name}')
+            elif logs.guild.id != HUB_SERVER_ID:
+                await logs.send(content=f'Emoji: {emoji.name} was added')
+
             Log.ok(f'Emoji: {emoji.name} successfully added in {guild.name}')
         except:
             Log.warning(f'Could not create emoji {emoji.name} in {guild.name}')
@@ -44,9 +54,15 @@ async def sync_delete(cache: set, bot: discord.Bot, emoji: discord.Emoji):
             # Could be forbidden to delete the emoji or get HTTP Exception
             try:
                 # Add the emoji object to the cache
+                await del_emoji.delete()
                 cache.add(del_emoji)
 
-                await del_emoji.delete()
+                # Send confirmation to logs channel                
+                logs = discord.utils.get(guild.channels, name="logs")
+                if not logs:
+                    Log.error(f'No logs channel in {guild.name}')
+                elif logs.guild.id != HUB_SERVER_ID:
+                    await logs.send(content=f'Emoji {emoji.name} was deleted')
                 Log.ok(f'Emoji: {emoji.name} in {guild.name} successfully deleted')
             except:
                 Log.warning(f'Could not delete emoji {emoji.name} in {guild.name}')
@@ -62,8 +78,15 @@ async def sync_name(cache: set, bot: discord.Bot, old_emoji: discord.Emoji, new_
             # If the name matches, update it and move on to the next guild
             if emoji.name == old_emoji.name:
                 # Add the emoji object to the cache
-                cache.add(old_emoji)
-
                 await emoji.edit(name=new_emoji.name)
+                cache.add(old_emoji)
+                
+                # Send confirmation to logs channel
+                logs = discord.utils.get(guild.channels, name="logs")
+                if not logs:
+                    Log.error(f'No logs channel in {guild.name}')
+                elif logs.guild.id != HUB_SERVER_ID:
+                    await logs.send(content=f'Emoji: {old_emoji.name} was renamed to {new_emoji.name}')
+
                 Log.ok(f'Updated emoji name {old_emoji.name} to {new_emoji.name} in guild {guild.id}')
                 break
