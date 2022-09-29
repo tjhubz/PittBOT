@@ -470,7 +470,6 @@ async def verify(ctx):
     # However, in case something fails or the bot does not have permission to view
     # join events in a server, it is a good idea to have a slash command set up that
     # will allow a user to manually trigger the verification process themselves.
-    # New comment
 
     try:
         author = ctx.author
