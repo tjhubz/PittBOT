@@ -456,9 +456,9 @@ class VerifyView(View):
     @discord.ui.button(label="Verify", style=discord.ButtonStyle.green)
     async def verify_callback(self, button, interaction):
         await verify(interaction)
-    @discord.ui.button(label="Need Help?", style=discord.ButtonStyle.grey, url="https://pitt.co1.qualtrics.com/jfe/form/SV_25Y15jZ9BmYYEf4")
-    async def help_callback(self, button):
-        Log.info("Help requested")
+    #@discord.ui.button(label="Need Help?", style=discord.ButtonStyle.grey, url="https://pitt.co1.qualtrics.com/jfe/form/SV_25Y15jZ9BmYYEf4")
+    #async def help_callback(self, button):
+    #    Log.info("Help requested")
 
 
 # ------------------------------- COMMANDS -------------------------------
