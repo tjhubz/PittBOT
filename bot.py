@@ -484,6 +484,12 @@ class URLModal(Modal):
 
 
 class VerifyView(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+        help_button = discord.ui.Button(label="Need Help?", style=discord.ButtonStyle.link, url="https://pitt.co1.qualtrics.com/jfe/form/SV_25Y15jZ9BmYYEf4")
+        self.add_item(help_button)
+
     @discord.ui.button(label="Verify", style=discord.ButtonStyle.green)
     async def verify_callback(self, button, interaction):
         await verify(interaction)
@@ -1064,7 +1070,7 @@ async def setup(ctx):
         print(int_exception.with_traceback())
 
     # Create a view that will contain a button which can be used to initialize the verification process
-    view = VerifyView(timeout=None)
+    view = VerifyView()
 
     await guild_to_landing[ctx.guild.id].send("Click below to verify.", view=view)
 
@@ -2132,7 +2138,7 @@ async def on_guild_join(guild):
         print(int_exception.with_traceback())
 
     # Create a view that will contain a button which can be used to initialize the verification process
-    view = VerifyView(timeout=None)
+    view = VerifyView()
 
     # Finished
     # Delete old verification message
@@ -2370,7 +2376,7 @@ async def on_ready():
         guild_to_landing[guild.id] = discord.utils.get(guild.channels, name="verify")
 
         # Create a view that will contain a button which can be used to initialize the verification process
-        view = VerifyView(timeout=None)
+        view = VerifyView()
 
         # Finished
         try:
