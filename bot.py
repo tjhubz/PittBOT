@@ -7,6 +7,7 @@ from typing import Sequence
 from urllib.request import urlopen
 import discord
 import discord.ext
+from discord.ext import tasks
 from discord.ui import Button, View, Modal, InputText
 import orjson
 import sqlalchemy
@@ -16,6 +17,7 @@ import util.invites
 from util.log import Log
 from util.db import DbGuild, DbInvite, DbUser, DbCategory, DbVerifyingUser, Base
 from util.emojis import sync_add, sync_delete, sync_name
+import datetime
 
 
 bot = discord.Bot(intents=discord.Intents.all())
@@ -1912,7 +1914,55 @@ async def on_scheduled_event_delete(deleted_event):
     bot_commands = bot.get_channel(BOT_COMMANDS_ID)
     await bot_commands.send(f"Event **{deleted_event.name}** successfully canceled.")
 
-
+   
+# Announces cumulative events once per week on Monday at 8AM
+# Runs once every day at 8AM and cancels on non-Mondays
+@tasks.loop(time=datetime.time(hour=13))
+async def weekly_cumulative_event_announcement():
+    # Cancels the function if today's date isn't Monday
+    if datetime.date.today().weekday() != 0:
+        return
+    # Iterates through residence hall servers, skipping hub server
+    for guild in bot.guilds:
+        if guild.id == HUB_SERVER_ID:
+            continue
+        # Creates an embed and iteratively appends fields for each event
+        link_embed = discord.Embed(title = "**Check out these events!**")
+        for scheduled_event in guild.scheduled_events:
+            if str(scheduled_event.status) == "ScheduledEventStatus.scheduled":
+                link_embed.add_field(name=scheduled_event.name,value=f"""{scheduled_event.description}
+[Details]({scheduled_event.url})""")
+        # Finds the announcements channel and sends the embed message
+        for channel in guild.channels:
+            if channel.name == 'announcements':
+                await channel.send(embed=link_embed)
+    
+    
+# Announces cumulative events manually via slash command
+@bot.slash_command(name="broadcast")
+async def broadcast(interaction: discord.Interaction):
+    # Cancels the command with a warning message if the user is not an administrator
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message("Administrator permissions required to run this command.", ephemeral=True)
+        return
+    # Iterates through residence hall servers, skipping hub server
+    for guild in bot.guilds:
+        if guild.id == HUB_SERVER_ID:
+            continue
+        # Creates an embed and iteratively appends fields for each event
+        link_embed = discord.Embed(title = "**Check out these events!**")
+        for scheduled_event in guild.scheduled_events:
+            if str(scheduled_event.status) == "ScheduledEventStatus.scheduled":
+                link_embed.add_field(name=scheduled_event.name,value=f"""{scheduled_event.description}
+[Details]({scheduled_event.url})""")
+        # Finds the announcements channel and sends the embed message
+        for channel in guild.channels:
+            if channel.name == 'announcements':
+                await channel.send(embed=link_embed)
+    # Sends confirmation message in #bot-commands
+    await interaction.response.send_message("Cumulative scheduled event list successfully broadcast.")
+    
+    
 @bot.event
 async def on_member_join(member: discord.Member):
     # Need to figure out what invite the user joined with
@@ -2351,6 +2401,9 @@ async def on_application_command_error(
 
 @bot.event
 async def on_ready():
+    # Start the loop of weekly cumulative event announcements
+    weekly_cumulative_event_announcement.start()
+    
     # Build a default invite cache
     for guild in bot.guilds:
         try:
