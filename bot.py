@@ -1939,7 +1939,7 @@ async def weekly_cumulative_event_announcement():
     
     
 # Announces cumulative events manually via slash command
-@bot.slash_command(name="broadcast")
+@bot.slash_command(name="broadcast", description="Manually send a notification of events occuring within the next week.")
 async def broadcast(interaction: discord.Interaction):
     # Cancels the command with a warning message if the user is not an administrator
     if not interaction.user.guild_permissions.administrator:
