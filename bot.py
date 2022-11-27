@@ -1932,7 +1932,7 @@ async def weekly_cumulative_event_announcement():
             if role.name == 'residents':
                 mention_string = role.mention
         # Creates an embed and iteratively appends fields for each event
-        link_embed = discord.Embed(title = "**Check out these events!**")
+        link_embed = discord.Embed(title = "**Check out these upcoming events!**")
         for scheduled_event in guild.scheduled_events:
             if str(scheduled_event.status) == "ScheduledEventStatus.scheduled":
                 if len(scheduled_event.description) > 64:
@@ -1964,7 +1964,7 @@ async def broadcast(interaction: discord.Interaction):
             if role.name == 'residents':
                 mention_string = role.mention
         # Creates an embed and iteratively appends fields for each event
-        link_embed = discord.Embed(title = "**Check out these events!**")
+        link_embed = discord.Embed(title = "**Check out these upcoming events!**")
         for scheduled_event in guild.scheduled_events:
             if str(scheduled_event.status) == "ScheduledEventStatus.scheduled":
                 if len(scheduled_event.description) > 64:
