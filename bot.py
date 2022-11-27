@@ -1926,16 +1926,25 @@ async def weekly_cumulative_event_announcement():
     for guild in bot.guilds:
         if guild.id == HUB_SERVER_ID:
             continue
+        # Finds the @residents role
+        mention_string = ""
+        for role in guild.roles:
+            if role.name == 'residents':
+                mention_string = role.mention
         # Creates an embed and iteratively appends fields for each event
         link_embed = discord.Embed(title = "**Check out these events!**")
         for scheduled_event in guild.scheduled_events:
             if str(scheduled_event.status) == "ScheduledEventStatus.scheduled":
-                link_embed.add_field(name=scheduled_event.name,value=f"""{scheduled_event.description}
+                if len(scheduled_event.description) > 64:
+                    truncated_description = scheduled_event.description[:64] + '...'
+                else:
+                    truncated_description = scheduled_event.description
+                link_embed.add_field(name=scheduled_event.name,value=f"""{truncated_description}
 [Details]({scheduled_event.url})""")
         # Finds the announcements channel and sends the embed message
         for channel in guild.channels:
             if channel.name == 'announcements':
-                await channel.send(embed=link_embed)
+                await channel.send(content=mention_string,embed=link_embed)
     
     
 # Announces cumulative events manually via slash command
@@ -1949,16 +1958,25 @@ async def broadcast(interaction: discord.Interaction):
     for guild in bot.guilds:
         if guild.id == HUB_SERVER_ID:
             continue
+        # Finds the @residents role
+        mention_string = ""
+        for role in guild.roles:
+            if role.name == 'residents':
+                mention_string = role.mention
         # Creates an embed and iteratively appends fields for each event
         link_embed = discord.Embed(title = "**Check out these events!**")
         for scheduled_event in guild.scheduled_events:
             if str(scheduled_event.status) == "ScheduledEventStatus.scheduled":
-                link_embed.add_field(name=scheduled_event.name,value=f"""{scheduled_event.description}
+                if len(scheduled_event.description) > 64:
+                    truncated_description = scheduled_event.description[:64] + '...'
+                else:
+                    truncated_description = scheduled_event.description
+                link_embed.add_field(name=scheduled_event.name,value=f"""{truncated_description}
 [Details]({scheduled_event.url})""")
         # Finds the announcements channel and sends the embed message
         for channel in guild.channels:
             if channel.name == 'announcements':
-                await channel.send(embed=link_embed)
+                await channel.send(content=mention_string,embed=link_embed)
     # Sends confirmation message in #bot-commands
     await interaction.response.send_message("Cumulative scheduled event list successfully broadcast.")
     
