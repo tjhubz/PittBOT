@@ -1,5 +1,5 @@
 # ---- Base ----
-FROM python AS base
+FROM python:slim AS base
 ADD util /PittBOT/util
 COPY bot.py /PittBOT/bot.py
 COPY config.json /PittBOT/config.json
