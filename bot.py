@@ -7,6 +7,7 @@ from typing import Sequence
 from urllib.request import urlopen
 import discord
 import discord.ext
+from discord.ext import tasks
 from discord.ui import Button, View, Modal, InputText
 import orjson
 import sqlalchemy
@@ -16,6 +17,7 @@ import util.invites
 from util.log import Log
 from util.db import DbGuild, DbInvite, DbUser, DbCategory, DbVerifyingUser, Base
 from util.emojis import sync_add, sync_delete, sync_name
+import datetime
 
 
 bot = discord.Bot(intents=discord.Intents.all())
@@ -1611,10 +1613,13 @@ questions_and_answers = OrderedDict()
 
 # PLEASE KEEP KEYS IN ALPHABETICAL ORDER
 questions_and_answers["computer_labs"] = ">>> The hours of operation for the University's computing labs are located here: \nhttps://www.technology.pitt.edu/services/student-computing-labs"
-questions_and_answers["covid"] = ">>> Information about vaccines and Pitt campuses' current COVID-19 levels can be found here: \nhttps://www.coronavirus.pitt.edu/\n\nMasking indoors is **required** when your campus's community level is `High`."
+questions_and_answers["covid_masks"] = ">>> Information about vaccines and Pitt campuses' current COVID-19 levels can be found here: \nhttps://www.coronavirus.pitt.edu/\n\nMasking indoors is **required** when your campus's community level is `High`."
+questions_and_answers["covid_tests"] = ">>> If you are feeling symptomatic, please call student health at (412) 383-1800. They can schedule COVID-19 and flu testing for free.\nhttps://www.coronavirus.pitt.edu/testing-and-care/covid-19-testing-overview"
 questions_and_answers["dining_dollars"] = ">>> This is a list of off-campus vendors that accept Pitt Dining Dollars: \nhttps://dineoncampus.com/pitt/offcampus-vendors"
+questions_and_answers["dining_guest"] = ">>> All unlimited meal plans and some lifestyle memberships come with 5-10 `flex passes` per semester. These can be used to admit friends or family at the Eatery or purchase a meal swap.\nhttps://dineoncampus.com/pitt/all-about-meal-memberships"
 questions_and_answers["dining_hours"] = ">>> The hours of operation for campus eateries are located here: \nhttps://dineoncampus.com/pitt/hours-of-operation"
 questions_and_answers["library_hours"] = ">>> The hours of operation for University libraries are located here: \nhttps://www.library.pitt.edu/hours"
+questions_and_answers["maintenance"] = ">>> For urgent maintenance requests, please call Panther Central at (412) 648-1100\nFor all other requests, simply visit https://www.pc.pitt.edu/maintenance-requests and fill out the form."
 questions_and_answers["panther_funds"] = ">>> You can add Panther Funds to your Pitt account using this link: \nhttps://bit.ly/PowerYourPantherCard\n\nYou can also load funds and track the balance of all of your accounts by downloading the Transact eAccounts mobile app on iOS or Android."
 questions_and_answers["phone_numbers"] = ">>> These are some important phone numbers:\n\n**Panther Central:** 412-648-1100\n**Pitt Police Emergency Line:** 412-624-2121\n**Pitt Police Non-Emergency Line:** 412-624-4040\n**Pitt Student Health Services:** 412-383-1800\n**Pittsburgh Action Against Rape 24/7 Helpline:** 1-866-363-7273\n**resolve Crisis Services:** 1-888-796-8226\n**SafeRider:** 412-648-2255\n**University Counseling Center:** 412-648-7930"
 questions_and_answers["printing"] = ">>> You can upload print jobs at https://print.pitt.edu/. All you have to do is upload your file to the website and then choose the job settings at the bottom right.\n\nOnce your file is uploaded, simply go to a printer and swipe your Pitt ID. Remember, you must go to a color printer to print in color!\n\nA full list of University printers and their locations is available here: https://www.technology.pitt.edu/services/pitt-print#locations"
@@ -1912,7 +1917,73 @@ async def on_scheduled_event_delete(deleted_event):
     bot_commands = bot.get_channel(BOT_COMMANDS_ID)
     await bot_commands.send(f"Event **{deleted_event.name}** successfully canceled.")
 
-
+   
+# Announces cumulative events once per week on Monday at 8AM
+# Runs once every day at 8AM and cancels on non-Mondays
+@tasks.loop(time=datetime.time(hour=13))
+async def weekly_cumulative_event_announcement():
+    # Cancels the function if today's date isn't Monday
+    if datetime.date.today().weekday() != 0:
+        return
+    # Iterates through residence hall servers, skipping hub server
+    for guild in bot.guilds:
+        if guild.id == HUB_SERVER_ID:
+            continue
+        # Finds the @residents role
+        mention_string = ""
+        for role in guild.roles:
+            if role.name == 'residents':
+                mention_string = role.mention
+        # Creates an embed and iteratively appends fields for each event
+        link_embed = discord.Embed(title = "**Check out these upcoming events!**")
+        for scheduled_event in guild.scheduled_events:
+            if str(scheduled_event.status) == "ScheduledEventStatus.scheduled":
+                if len(scheduled_event.description) > 64:
+                    truncated_description = scheduled_event.description[:64] + '...'
+                else:
+                    truncated_description = scheduled_event.description
+                link_embed.add_field(name=scheduled_event.name,value=f"""{truncated_description}
+[Details]({scheduled_event.url})""")
+        # Finds the announcements channel and sends the embed message
+        for channel in guild.channels:
+            if channel.name == 'announcements':
+                await channel.send(content=mention_string,embed=link_embed)
+    
+    
+# Announces cumulative events manually via slash command
+@bot.slash_command(name="broadcast", description="Manually send a notification of events occuring within the next week.")
+async def broadcast(interaction: discord.Interaction):
+    # Cancels the command with a warning message if the user is not an administrator
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message("Administrator permissions required to run this command.", ephemeral=True)
+        return
+    # Iterates through residence hall servers, skipping hub server
+    for guild in bot.guilds:
+        if guild.id == HUB_SERVER_ID:
+            continue
+        # Finds the @residents role
+        mention_string = ""
+        for role in guild.roles:
+            if role.name == 'residents':
+                mention_string = role.mention
+        # Creates an embed and iteratively appends fields for each event
+        link_embed = discord.Embed(title = "**Check out these upcoming events!**")
+        for scheduled_event in guild.scheduled_events:
+            if str(scheduled_event.status) == "ScheduledEventStatus.scheduled":
+                if len(scheduled_event.description) > 64:
+                    truncated_description = scheduled_event.description[:64] + '...'
+                else:
+                    truncated_description = scheduled_event.description
+                link_embed.add_field(name=scheduled_event.name,value=f"""{truncated_description}
+[Details]({scheduled_event.url})""")
+        # Finds the announcements channel and sends the embed message
+        for channel in guild.channels:
+            if channel.name == 'announcements':
+                await channel.send(content=mention_string,embed=link_embed)
+    # Sends confirmation message in #bot-commands
+    await interaction.response.send_message("Cumulative scheduled event list successfully broadcast.")
+    
+    
 @bot.event
 async def on_member_join(member: discord.Member):
     # Need to figure out what invite the user joined with
@@ -2351,6 +2422,9 @@ async def on_application_command_error(
 
 @bot.event
 async def on_ready():
+    # Start the loop of weekly cumulative event announcements
+    weekly_cumulative_event_announcement.start()
+    
     # Build a default invite cache
     for guild in bot.guilds:
         try:
