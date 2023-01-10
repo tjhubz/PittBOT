@@ -108,5 +108,11 @@
         "permissions": ["administrator"],
         "parameters": [],
         "types": ["Slash Command"]
+    },
+    "broadcast": {
+        "description": "Manually send a notification of events occuring within the next week.",
+        "permissions": ["administrator"],
+        "parameters": [],
+        "types": ["Slash Command"]
     }
 }
