@@ -11,7 +11,7 @@ node {
         /* This builds the actual image; synonymous to
          * docker build on the command line */
 
-        app = docker.build("tjhubz/pittbot")
+        app = docker.build("tjhubz/pittbot", "--no-cache")
     }
 
     if(env.BRANCH_NAME == 'dev'){
