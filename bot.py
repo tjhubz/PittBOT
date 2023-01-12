@@ -60,7 +60,10 @@ with open("config.json", "r") as config:
     VERSION = data["version"]
 
 # Database initialization
-db = sqlalchemy.create_engine(f"mysql+mysqlconnector://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_IP}/responses", echo=False)
+db = sqlalchemy.create_engine(
+    f"mysql+mysqlconnector://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_IP}/responses", 
+    echo=False
+)
 # Database session init
 Session = sessionmaker(bind=db)
 session = Session()
