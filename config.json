@@ -1,5 +1,4 @@
 {
     "mode": "production",
     "version": "1.0.0",
-    "database_path": "dbs/main.db"
 }
