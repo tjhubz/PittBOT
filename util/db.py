@@ -124,7 +124,8 @@ class DbCategory(Base):
 """
 
 class DbVerifyingUser(Base):
-    """Represents a user that is in the verification process, or data used for verification, in the bot's MySQL database.
+    """Represents a user that is in the verification process, 
+    or data used for verification, in the bot's MySQL database.
     ## Attributes
     
     
