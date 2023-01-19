@@ -1758,7 +1758,7 @@ async def on_scheduled_event_create(scheduled_event):
         # Executes if URL is direct image link
         if (cover_url.lower()).startswith("http"):
             # Deletes message with buttons to avoid double-clicking
-            await interaction.delete_original_message()
+            await interaction.delete_original_response()
             # Opens URL and converts contents to bytes object
             cover_bytes = urlopen(cover_url).read()
             # Adds cover image to hub event
@@ -1793,7 +1793,7 @@ Only direct image links are supported. Try again."""
     async def no_callback(interaction: discord.Interaction):
         await interaction.response.defer()
         # Deletes message with buttons to avoid double-clicking
-        await interaction.delete_original_message()
+        await interaction.delete_original_response()
         # Iterates through residence hall servers, skipping hub server
         for guild in bot.guilds:
             if guild.id == HUB_SERVER_ID:
@@ -1815,7 +1815,7 @@ Only direct image links are supported. Try again."""
     async def cancel_callback(interaction: discord.Interaction):
         await interaction.response.defer()
         # Deletes message with buttons to avoid double-clicking
-        await interaction.delete_original_message()
+        await interaction.delete_original_response()
         # Cancels event in hub server
         await scheduled_event.cancel()
         # Sends confirmation message in #bot-message
@@ -1845,6 +1845,15 @@ async def on_scheduled_event_update(old_scheduled_event, new_scheduled_event):
             continue
         # Iterates through the events in the server
         for scheduled_event in guild.scheduled_events:
+            # Executes each time an event with the old name is found
+            if scheduled_event.name == old_scheduled_event.name:
+                await scheduled_event.edit(
+                    name=new_scheduled_event.name,
+                    description=new_scheduled_event.description,
+                    location=new_scheduled_event.location,
+                    start_time=new_scheduled_event.start_time,
+                    end_time=new_scheduled_event.end_time,
+                    )
             # Executes each time an event with the same name is found
             if scheduled_event.name == new_scheduled_event.name:
                 # Syncs edits to scheduled events
@@ -1967,23 +1976,30 @@ async def broadcast(interaction: discord.Interaction):
             if role.name == 'residents':
                 mention_string = role.mention
         # Creates an embed and iteratively appends fields for each event
-        link_embed = discord.Embed(title = "**Check out these upcoming events!**")
+        link_embed = discord.Embed(title = "*Click \"details\" for more information!*")
         for scheduled_event in guild.scheduled_events:
-            if str(scheduled_event.status) == "ScheduledEventStatus.scheduled":
+            def within_week(x):
+                d = datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S")
+                now = datetime.datetime.now()
+                return (d - now).days < 7
+            if str(scheduled_event.status) == "ScheduledEventStatus.scheduled" and within_week(str(scheduled_event.start_time.replace(tzinfo=None))):
                 if len(scheduled_event.description) > 64:
                     truncated_description = scheduled_event.description[:64] + '...'
                 else:
                     truncated_description = scheduled_event.description
-                link_embed.add_field(name=scheduled_event.name,value=f"""{truncated_description}
-[Details]({scheduled_event.url})""")
+                date = datetime.datetime.strptime(str(scheduled_event.start_time.replace(tzinfo=None)), "%Y-%m-%d %H:%M:%S")
+                day = date.strftime("%A")
+                link_embed.add_field(name=scheduled_event.name,value=f"""*{day}*\n{truncated_description}\n[Details]({scheduled_event.url})""")
         # Finds the announcements channel and sends the embed message
         for channel in guild.channels:
             if channel.name == 'announcements':
-                await channel.send(content=mention_string,embed=link_embed)
+                await channel.send(content="**Check out these upcoming events!** "+mention_string,embed=link_embed)
     # Sends confirmation message in #bot-commands
     await interaction.response.send_message("Cumulative scheduled event list successfully broadcast.")
-    
-    
+
+
+# ------------------------------- INVITE HANDLERS -------------------------------
+
 @bot.event
 async def on_member_join(member: discord.Member):
     # Need to figure out what invite the user joined with
