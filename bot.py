@@ -1956,7 +1956,8 @@ async def weekly_cumulative_event_announcement():
         # Finds the announcements channel and sends the embed message
         for channel in guild.channels:
             if channel.name == 'announcements':
-                await channel.send(content=mention_string,embed=link_embed)
+                if channel.category.name == 'info':
+                    await channel.send(content=mention_string,embed=link_embed)
     
     
 # Announces cumulative events manually via slash command
@@ -1993,7 +1994,8 @@ async def broadcast(interaction: discord.Interaction):
         # Finds the announcements channel and sends the embed message
         for channel in guild.channels:
             if channel.name == 'announcements':
-                await channel.send(content="**Check out these upcoming events!** "+mention_string,embed=link_embed)
+                if channel.category.name == 'info':
+                    await channel.send(content="**Check out these upcoming events!** "+mention_string,embed=link_embed)
     # Sends confirmation message in #bot-commands
     await interaction.response.send_message("Cumulative scheduled event list successfully broadcast.")
 
