@@ -1934,6 +1934,9 @@ async def weekly_cumulative_event_announcement():
     # Cancels the function if today's date isn't Monday
     if datetime.date.today().weekday() != 0:
         return
+     #Cancels if no events
+    if len(guild.scheduled_events) == 0:
+        return
     # Iterates through residence hall servers, skipping hub server
     for guild in bot.guilds:
         if guild.id == HUB_SERVER_ID:
