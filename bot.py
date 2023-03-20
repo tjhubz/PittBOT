@@ -405,7 +405,7 @@ class EmojiSyncView(discord.ui.View):
         super().__init__(timeout=None, *args, **kwargs)
         self.emoji = emoji
         self.old_emoji = old_emoji
-        
+
         # Mod type will be a String of 'Add', 'Del', or 'Name' 
         self.mod_type = mod_type
 
@@ -1926,7 +1926,7 @@ async def on_scheduled_event_delete(deleted_event):
     bot_commands = bot.get_channel(BOT_COMMANDS_ID)
     await bot_commands.send(f"Event **{deleted_event.name}** successfully canceled.")
 
-   
+
 # Announces cumulative events once per week on Monday at 8AM
 # Runs once every day at 8AM and cancels on non-Mondays
 @tasks.loop(time=datetime.time(hour=13))
@@ -1958,8 +1958,8 @@ async def weekly_cumulative_event_announcement():
             if channel.name == 'announcements':
                 if channel.category.name == 'info':
                     await channel.send(content=mention_string,embed=link_embed)
-    
-    
+
+
 # Announces cumulative events manually via slash command
 @bot.slash_command(name="broadcast", description="Manually send a notification of events occuring within the next week.")
 async def broadcast(interaction: discord.Interaction):
@@ -2327,12 +2327,12 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
             except KeyError:
                 Log.error(f'Detected {emoji.name} synced cache but remove() failed')
             return
-        
+
         # Automatically sync throughout all guilds if made in control
         if changed_in_hub:
             await bot_commands.send(content=f'Synching {emoji.name}, {emoji}, across Guilds', delete_after=LONG_DELETE_TIME)
             await sync_add(cache=synced_emoji_cache, bot=bot, emoji=emoji)            
-            
+
         # Send View and wait for acceptance or denial
         else:
             # Send the view in the commands server
@@ -2355,12 +2355,12 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
             except KeyError:
                 Log.error(f'Detected {emoji.name} synced cache but remove() failed')
             return
-        
+
         # Auto-sync
         if changed_in_hub:
             await bot_commands.send(content=f'Synching deletion of {emoji.name}, {emoji}, across all Guilds', delete_after=LONG_DELETE_TIME)
             await sync_delete(cache=synced_emoji_cache, bot=bot, emoji=emoji)
-            
+
         # Send View and wait for acceptance or denial
         else:
             # Check that the emoji is a synced emoji among guild
@@ -2369,7 +2369,7 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
                 if hub_emoji.name == emoji.name:
                     synced = True
                     break
-            
+
             # If the emoji is a synced emoji, send the View, else we do not have to do anything
             if synced:
                 await bot_commands.send(
@@ -2414,7 +2414,7 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
                 if hub_emoji.name == old_emoji.name:
                     synced = True
                     break
-            
+
             # If the emoji is a synced emoji, send the View, else we do not have to do anything
             if synced:
                 await bot_commands.send(
@@ -2442,7 +2442,7 @@ async def on_application_command_error(
 async def on_ready():
     # Start the loop of weekly cumulative event announcements
     weekly_cumulative_event_announcement.start()
-    
+
     # Build a default invite cache
     for guild in bot.guilds:
         try:
