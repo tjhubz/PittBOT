@@ -63,7 +63,7 @@ class HelpCommandOutput:
             # input name: "the description" \n
             inputDescriptionText = inputDescriptionText + inputt["name"] + ": \"" + inputt["description"] + "\"\n"
         self.outputList.append(inputDescriptionText)
-        
+
         # adding the command type
         commandTypes = ""
         for command in commandDataJson["types"]:

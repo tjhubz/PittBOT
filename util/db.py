@@ -127,11 +127,11 @@ class DbVerifyingUser(Base):
     """Represents a user that is in the verification process,
     or data used for verification, in the bot's MySQL database.
     ## Attributes
-    
-    
+
+
     """
     __tablename__ = "verifyingusers"
-    
+
     # User ID
     ID = Column("id", BigInteger().with_variant(Integer, "mysql"), primary_key=True)
     # Invite code user used to join

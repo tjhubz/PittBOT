@@ -16,16 +16,16 @@ async def sync_add(cache: set, bot: discord.Bot, emoji: discord.Emoji):
             if guild_emoji.name == emoji.name:
                 exists = True
                 break
-        
+
         # If the emoji exists, we can skip creation
         if exists:
             continue
- 
+
         try:
             # Create emoji and add it to the cache
             created_emoji = await guild.create_custom_emoji(name=emoji.name, image=await emoji.read())
             cache.add(created_emoji)
-            
+
             # Send confirmation to logs channel 
             logs = discord.utils.get(guild.channels, name="logs")
             if not logs:
@@ -80,7 +80,7 @@ async def sync_name(cache: set, bot: discord.Bot, old_emoji: discord.Emoji, new_
                 # Add the emoji object to the cache
                 await emoji.edit(name=new_emoji.name)
                 cache.add(old_emoji)
-                
+
                 # Send confirmation to logs channel
                 logs = discord.utils.get(guild.channels, name="logs")
                 if not logs:

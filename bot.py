@@ -403,7 +403,7 @@ class EmojiSyncView(discord.ui.View):
         super().__init__(timeout=None, *args, **kwargs)
         self.emoji = emoji
         self.old_emoji = old_emoji
-        
+
         # Mod type will be a String of 'Add', 'Del', or 'Name' 
         self.mod_type = mod_type
 
@@ -1756,7 +1756,7 @@ async def on_scheduled_event_create(scheduled_event):
         # Executes if URL is direct image link
         if (cover_url.lower()).startswith("http"):
             # Deletes message with buttons to avoid double-clicking
-            await interaction.delete_original_message()
+            await interaction.delete_original_response()
             # Opens URL and converts contents to bytes object
             cover_bytes = urlopen(cover_url).read()
             # Adds cover image to hub event
@@ -1791,7 +1791,7 @@ Only direct image links are supported. Try again."""
     async def no_callback(interaction: discord.Interaction):
         await interaction.response.defer()
         # Deletes message with buttons to avoid double-clicking
-        await interaction.delete_original_message()
+        await interaction.delete_original_response()
         # Iterates through residence hall servers, skipping hub server
         for guild in bot.guilds:
             if guild.id == HUB_SERVER_ID:
@@ -1813,7 +1813,7 @@ Only direct image links are supported. Try again."""
     async def cancel_callback(interaction: discord.Interaction):
         await interaction.response.defer()
         # Deletes message with buttons to avoid double-clicking
-        await interaction.delete_original_message()
+        await interaction.delete_original_response()
         # Cancels event in hub server
         await scheduled_event.cancel()
         # Sends confirmation message in #bot-message
@@ -1843,6 +1843,15 @@ async def on_scheduled_event_update(old_scheduled_event, new_scheduled_event):
             continue
         # Iterates through the events in the server
         for scheduled_event in guild.scheduled_events:
+            # Executes each time an event with the old name is found
+            if scheduled_event.name == old_scheduled_event.name:
+                await scheduled_event.edit(
+                    name=new_scheduled_event.name,
+                    description=new_scheduled_event.description,
+                    location=new_scheduled_event.location,
+                    start_time=new_scheduled_event.start_time,
+                    end_time=new_scheduled_event.end_time,
+                    )
             # Executes each time an event with the same name is found
             if scheduled_event.name == new_scheduled_event.name:
                 # Syncs edits to scheduled events
@@ -1915,7 +1924,7 @@ async def on_scheduled_event_delete(deleted_event):
     bot_commands = bot.get_channel(BOT_COMMANDS_ID)
     await bot_commands.send(f"Event **{deleted_event.name}** successfully canceled.")
 
-   
+
 # Announces cumulative events once per week on Monday at 8AM
 # Runs once every day at 8AM and cancels on non-Mondays
 @tasks.loop(time=datetime.time(hour=13))
@@ -1923,10 +1932,13 @@ async def weekly_cumulative_event_announcement():
     # Cancels the function if today's date isn't Monday
     if datetime.date.today().weekday() != 0:
         return
+    #Cancels the function if there are no scheduled events  
+    if len(guild.scheduled_event) == 0:
+        return    
     # Iterates through residence hall servers, skipping hub server
     for guild in bot.guilds:
         if guild.id == HUB_SERVER_ID:
-            continue
+            continue  
         # Finds the @residents role
         mention_string = ""
         for role in guild.roles:
@@ -1945,9 +1957,10 @@ async def weekly_cumulative_event_announcement():
         # Finds the announcements channel and sends the embed message
         for channel in guild.channels:
             if channel.name == 'announcements':
-                await channel.send(content=mention_string,embed=link_embed)
-    
-    
+                if channel.category.name == 'info':
+                    await channel.send(content=mention_string,embed=link_embed)
+
+
 # Announces cumulative events manually via slash command
 @bot.slash_command(name="broadcast", description="Manually send a notification of events occuring within the next week.")
 async def broadcast(interaction: discord.Interaction):
@@ -1965,23 +1978,31 @@ async def broadcast(interaction: discord.Interaction):
             if role.name == 'residents':
                 mention_string = role.mention
         # Creates an embed and iteratively appends fields for each event
-        link_embed = discord.Embed(title = "**Check out these upcoming events!**")
+        link_embed = discord.Embed(title = "*Click \"details\" for more information!*")
         for scheduled_event in guild.scheduled_events:
-            if str(scheduled_event.status) == "ScheduledEventStatus.scheduled":
+            def within_week(x):
+                d = datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S")
+                now = datetime.datetime.now()
+                return (d - now).days < 7
+            if str(scheduled_event.status) == "ScheduledEventStatus.scheduled" and within_week(str(scheduled_event.start_time.replace(tzinfo=None))):
                 if len(scheduled_event.description) > 64:
                     truncated_description = scheduled_event.description[:64] + '...'
                 else:
                     truncated_description = scheduled_event.description
-                link_embed.add_field(name=scheduled_event.name,value=f"""{truncated_description}
-[Details]({scheduled_event.url})""")
+                date = datetime.datetime.strptime(str(scheduled_event.start_time.replace(tzinfo=None)), "%Y-%m-%d %H:%M:%S")
+                day = date.strftime("%A")
+                link_embed.add_field(name=scheduled_event.name,value=f"""*{day}*\n{truncated_description}\n[Details]({scheduled_event.url})""")
         # Finds the announcements channel and sends the embed message
         for channel in guild.channels:
             if channel.name == 'announcements':
-                await channel.send(content=mention_string,embed=link_embed)
+                if channel.category.name == 'info':
+                    await channel.send(content="**Check out these upcoming events!** "+mention_string,embed=link_embed)
     # Sends confirmation message in #bot-commands
     await interaction.response.send_message("Cumulative scheduled event list successfully broadcast.")
-    
-    
+
+
+# ------------------------------- INVITE HANDLERS -------------------------------
+
 @bot.event
 async def on_member_join(member: discord.Member):
     # Need to figure out what invite the user joined with
@@ -2307,12 +2328,12 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
             except KeyError:
                 Log.error(f'Detected {emoji.name} synced cache but remove() failed')
             return
-        
+
         # Automatically sync throughout all guilds if made in control
         if changed_in_hub:
             await bot_commands.send(content=f'Synching {emoji.name}, {emoji}, across Guilds', delete_after=LONG_DELETE_TIME)
             await sync_add(cache=synced_emoji_cache, bot=bot, emoji=emoji)            
-            
+
         # Send View and wait for acceptance or denial
         else:
             # Send the view in the commands server
@@ -2335,12 +2356,12 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
             except KeyError:
                 Log.error(f'Detected {emoji.name} synced cache but remove() failed')
             return
-        
+
         # Auto-sync
         if changed_in_hub:
             await bot_commands.send(content=f'Synching deletion of {emoji.name}, {emoji}, across all Guilds', delete_after=LONG_DELETE_TIME)
             await sync_delete(cache=synced_emoji_cache, bot=bot, emoji=emoji)
-            
+
         # Send View and wait for acceptance or denial
         else:
             # Check that the emoji is a synced emoji among guild
@@ -2349,7 +2370,7 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
                 if hub_emoji.name == emoji.name:
                     synced = True
                     break
-            
+
             # If the emoji is a synced emoji, send the View, else we do not have to do anything
             if synced:
                 await bot_commands.send(
@@ -2394,7 +2415,7 @@ async def on_guild_emojis_update(guild: discord.Guild, before: Sequence[discord.
                 if hub_emoji.name == old_emoji.name:
                     synced = True
                     break
-            
+
             # If the emoji is a synced emoji, send the View, else we do not have to do anything
             if synced:
                 await bot_commands.send(
@@ -2422,7 +2443,7 @@ async def on_application_command_error(
 async def on_ready():
     # Start the loop of weekly cumulative event announcements
     weekly_cumulative_event_announcement.start()
-    
+
     # Build a default invite cache
     for guild in bot.guilds:
         try:
