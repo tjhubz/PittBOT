@@ -2,7 +2,7 @@
 
 from collections import OrderedDict
 import os
-from sqlite3 import IntegrityError
+from mysql.connector import IntegrityError
 from typing import Sequence
 from urllib.request import urlopen
 import discord
@@ -27,7 +27,9 @@ bot = discord.Bot(intents=discord.Intents.all())
 TOKEN = os.getenv("PITTBOT_TOKEN")
 DEBUG = False
 VERSION = "0.1.2"
-DATABASE_PATH = "dbs/main.db"
+DATABASE_USER = os.getenv("MYSQL_USER")
+DATABASE_PASSWORD = os.getenv("MYSQL_PASSWORD")
+DATABASE_IP = os.getenv("MYSQL_IP")
 HUB_SERVER_ID = 996607138803748954
 BOT_COMMANDS_ID = 1006618232129585216
 ERRORS_CHANNEL_ID = 1008400699689799712
@@ -57,15 +59,11 @@ with open("config.json", "r") as config:
     # Version, so that it only has to be updated in one place.
     VERSION = data["version"]
 
-    # A SQLite3 database will be used to track users and
-    # and information that is needed about them persistently
-    # (residence, email address, etc.)
-    # This is a path to the database RELATIVE to THIS (bot.py) file.
-    DATABASE_PATH = data["database_path"] or "dbs/test.db"
-
-os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
 # Database initialization
-db = sqlalchemy.create_engine(f"sqlite:///{DATABASE_PATH}")
+db = sqlalchemy.create_engine(
+    f"mysql+mysqlconnector://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_IP}/responses",
+    echo=False
+)
 # Database session init
 Session = sessionmaker(bind=db)
 session = Session()
@@ -2499,7 +2497,6 @@ if DEBUG:
         f"""Bootstrapping bot...
 ---------------------------------------
 {VERSION=}
-{DATABASE_PATH=}
 ---------------------------------------
 Hello :)
 """

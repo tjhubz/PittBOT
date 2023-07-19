@@ -10,7 +10,7 @@ Base = declarative_base()
 
 
 class DbUser(Base):
-    """Represents a user in the bot's SQLite3 database.
+    """Represents a user in the bot's MySQL database.
     ## Attributes
 
     `ID: BigInteger` = the user's discord ID
@@ -24,7 +24,7 @@ class DbUser(Base):
     __tablename__ = "users"
 
     # This will be the same as the user's discord ID (which is NOT their username)
-    ID = Column("id", BigInteger().with_variant(Integer, "sqlite"), primary_key=True)
+    ID = Column("id", BigInteger().with_variant(Integer, "mysql"), primary_key=True)
     # User's discord username
     username = Column("username", String)
     # User's PITT email address
@@ -41,7 +41,7 @@ class DbUser(Base):
 
 
 class DbGuild(Base):
-    """Represents a guild in the bot's SQLite3 database.
+    """Represents a guild in the bot's MySQL database.
     ## Attributes
 
     `ID: BigInteger`                 = the guild's discord ID
@@ -53,14 +53,14 @@ class DbGuild(Base):
     __tablename__ = "guilds"
 
     # Guild ID
-    ID = Column("id", BigInteger().with_variant(Integer, "sqlite"), primary_key=True)
+    ID = Column("id", BigInteger().with_variant(Integer, "mysql"), primary_key=True)
     # Whether the Guild has undergone initial setup or not
     is_setup = Column("setup", Boolean)
     # RA Role ID
-    ra_role_id = Column("raRoleID", BigInteger().with_variant(Integer, "sqlite"))
+    ra_role_id = Column("raRoleID", BigInteger().with_variant(Integer, "mysql"))
     # Landing channel ID
     landing_channel_id = Column(
-        "landingChannelID", BigInteger().with_variant(Integer, "sqlite")
+        "landingChannelID", BigInteger().with_variant(Integer, "mysql")
     )
 
     def __repr__(self):
@@ -74,7 +74,7 @@ class DbGuild(Base):
 
 
 class DbInvite(Base):
-    """Represents an invite in the bot's SQLite3 database.
+    """Represents an invite in the bot's MySQL database.
     ## Attributes
 
     `code: BigInteger`      = this invite's code (URL postfix)
@@ -88,9 +88,9 @@ class DbInvite(Base):
     # Invite code
     code = Column("code", String, primary_key=True)
     # Which guild it belongs to
-    guild_id = Column("guildID", BigInteger().with_variant(Integer, "sqlite"))
+    guild_id = Column("guildID", BigInteger().with_variant(Integer, "mysql"))
     # The role ID that this invite is associated with
-    role_id = Column("roleID", BigInteger().with_variant(Integer, "sqlite"))
+    role_id = Column("roleID", BigInteger().with_variant(Integer, "mysql"))
 
     def __repr__(self):
         return f"""Invite: {{
@@ -102,7 +102,7 @@ class DbInvite(Base):
 
 
 class DbCategory(Base):
-    """Represents a category in the bot's SQLite3 database.
+    """Represents a category in the bot's MySQL database.
     ## Attributes
 
     `ID: BigInteger`        = the category ID for this category
@@ -112,9 +112,9 @@ class DbCategory(Base):
     __tablename__ = "categories"
 
     # Category ID
-    ID = Column("id", BigInteger().with_variant(Integer, "sqlite"), primary_key=True)
+    ID = Column("id", BigInteger().with_variant(Integer, "mysql"), primary_key=True)
     # Community role ID category is associated with
-    role_id = Column("roleID", BigInteger().with_variant(Integer, "sqlite"))
+    role_id = Column("roleID", BigInteger().with_variant(Integer, "mysql"))
 
     def __repr__(self):
         return f"""Category: {{
@@ -124,7 +124,8 @@ class DbCategory(Base):
 """
 
 class DbVerifyingUser(Base):
-    """Represents a user that is in the verification process, or data used for verification, in the bot's SQLite3 database.
+    """Represents a user that is in the verification process,
+    or data used for verification, in the bot's MySQL database.
     ## Attributes
 
 
@@ -132,7 +133,7 @@ class DbVerifyingUser(Base):
     __tablename__ = "verifyingusers"
 
     # User ID
-    ID = Column("id", BigInteger().with_variant(Integer, "sqlite"), primary_key=True)
+    ID = Column("id", BigInteger().with_variant(Integer, "mysql"), primary_key=True)
     # Invite code user used to join
     invite_code = Column("invite", String)
 
