@@ -77,17 +77,17 @@ async def make_categories(
             try:
                 # Split on comma and parse first/last out
                 names = ra_line.split(",")
-                first_name = names[1].rstrip()
+                first_name = names[1].rstrip().replace("\n", "").replace("\r", "")
             except IndexError:
                 # If there is no second item in the split (there was only one name)
                 # then use the whole line (minus ',') as the name
-                first_name = ra_line.strip().replace(",", "")
+                first_name = ra_line.strip().replace(",", "").replace("\n", "").replace("\r", "")
         else:
             try:
                 names = ra_line.split(" ")
-                first_name = names[1].rstrip()
+                first_name = names[1].rstrip().replace("\n", "").replace("\r", "")
             except IndexError:
-                first_name = ra_line.strip()
+                first_name = ra_line.strip().replace("\n", "").replace("\r", "")
 
         # Create the RA's category
         category = await guild.create_category(
@@ -119,6 +119,7 @@ async def make_categories(
 
         info_category = discord.utils.get(landing_channel.guild.categories, name="info")
 
+        ra_line = ra_line.replace("\n", "").replace("\r", "") #fix line break appearing in text file
         ras_with_links.append(f"{ra_line} : {invite.url}\n")
 
         perms = Permissions(view_channel=True)
