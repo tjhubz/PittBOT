@@ -1075,8 +1075,24 @@ async def setup(ctx):
 
     # Create a view that will contain a button which can be used to initialize the verification process
     view = VerifyView()
+    async for msg in guild_to_landing[ctx.guild.id].history():
+        if msg.author == bot.user and msg.content == VERIFICATION_MESSAGE:
+            await msg.delete()
+            break
+    await guild_to_landing[ctx.guild.id].send(VERIFICATION_MESSAGE, view=view)
 
-    await guild_to_landing[ctx.guild.id].send("Click below to verify.", view=view)
+    # Setup welcome message
+    welcome_channel = discord.utils.get(ctx.guild.channels, name="welcome")
+    await welcome_channel.send(file=discord.File("welcome.png"))
+    await welcome_channel.send("""Here, you can stay informed of events and programs, chat with other residents, play games, watch movies, and so much more!
+
+**Not sure how to use Discord?**
+No problem! Check out [this article for help](https://support.discord.com/hc/en-us/articles/360045138571-Beginner-s-Guide-to-Discord).
+
+**Rules**
+As a reminder, you must follow the Student Code of Conduct on this server. Our goal is to create a supportive, inclusive community for everyone. If you violate the Code of Conduct, you may be subject to removal from this server. The code of conduct can be found [here](https://www.studentaffairs.pitt.edu/wp-content/uploads/2021/09/2021_Academic-Year_Linked.pdf).
+
+We hope you have a great year! Contact your RA if you have any questions.""")
 
     # Finished
     await ctx.respond("Setup finished.", ephemeral=True)
