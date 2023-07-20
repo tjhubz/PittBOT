@@ -1087,6 +1087,38 @@ async def setup(ctx):
     await welcome_channel.send("""Here, you can stay informed of events and programs, chat with other residents, play games, watch movies, and so much more!
 
 **Not sure how to use Discord?**
+No problem! Check out this article for help:
+https://support.discord.com/hc/en-us/articles/360045138571-Beginner-s-Guide-to-Discord
+
+**Rules**
+As a reminder, you must follow the Student Code of Conduct on this server. Our goal is to create a supportive, inclusive community for everyone. If you violate the Code of Conduct, you may be subject to removal from this server. The code of conduct can be found here:
+https://www.studentaffairs.pitt.edu/wp-content/uploads/2021/09/2021_Academic-Year_Linked.pdf
+
+We hope you have a great year! Contact your RA if you have any questions.""")
+
+    # Finished
+    await ctx.respond("Setup finished.", ephemeral=True)
+
+
+# Added this because the welcome command can get messed up since discord is rolling out embedded links slowly
+@bot.slash_command(
+    name="fix_welcome",
+    description="Fix the welcome message if it wasn't properly sent/formatted to use embedded links.",
+)
+@discord.ext.commands.has_permissions(administrator=True)
+async def fix_welcome(ctx):
+    welcome_channel = discord.utils.get(ctx.guild.channels, name="welcome")
+
+    #delete the old one
+    async for msg in welcome_channel.history():
+        if msg.author == bot.user:
+            await msg.delete()
+            break
+
+    await welcome_channel.send(file=discord.File("welcome.png"))
+    await welcome_channel.send("""Here, you can stay informed of events and programs, chat with other residents, play games, watch movies, and so much more!
+
+**Not sure how to use Discord?**
 No problem! Check out [this article for help](https://support.discord.com/hc/en-us/articles/360045138571-Beginner-s-Guide-to-Discord).
 
 **Rules**
@@ -1095,7 +1127,7 @@ As a reminder, you must follow the Student Code of Conduct on this server. Our g
 We hope you have a great year! Contact your RA if you have any questions.""")
 
     # Finished
-    await ctx.respond("Setup finished.", ephemeral=True)
+    await ctx.respond("Task completed.", ephemeral=True)
 
 
 @bot.slash_command(
