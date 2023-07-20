@@ -43,9 +43,6 @@ VERIFICATION_MESSAGE = "Click the button below to get verified!"
 
 # ------------------------------- DATABASE -------------------------------
 
-
-print(HUB_SERVER_ID)
-
 with open("config.json", "r") as config:
     data = orjson.loads(config.read())
 
