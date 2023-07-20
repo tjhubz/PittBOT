@@ -8,6 +8,7 @@ WORKDIR /PittBOT
 # ---- Dependencies ----
 FROM base as dependencies
 COPY requirements.txt /PittBOT/requirements.txt
+COPY welcome.png /PittBOT/welcome.png
 RUN pip install --no-cache-dir -r requirements.txt
 
 # ---- Release ----
