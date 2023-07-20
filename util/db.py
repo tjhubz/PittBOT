@@ -24,17 +24,17 @@ class DbUser(Base):
     __tablename__ = "users"
 
     # This will be the same as the user's discord ID (which is NOT their username)
-    ID = Column("id", BigInteger().with_variant(Integer, "mysql"), primary_key=True)
+    ID = Column("id", BigInteger, primary_key=True)
     # User's discord username
-    username = Column("username", String)
+    username = Column("username", String(50))
     # User's PITT email address
-    email = Column("email", String)
+    email = Column("email", String(30))
     # Whether the user has been verified or not
     verified = Column("verified", Boolean)
     # Is this user an RA?
     is_ra = Column("isRA", Boolean)
     # Which community is this user a part of
-    community = Column("community", String)
+    community = Column("community", String(50))
 
     def __repr__(self):
         return f"User: {{\n\tid: {self.ID}\n\tusername: {self.username}\n\temail: {self.email}\n\tverified: {self.verified}}}"
@@ -53,14 +53,14 @@ class DbGuild(Base):
     __tablename__ = "guilds"
 
     # Guild ID
-    ID = Column("id", BigInteger().with_variant(Integer, "mysql"), primary_key=True)
+    ID = Column("id", BigInteger, primary_key=True)
     # Whether the Guild has undergone initial setup or not
     is_setup = Column("setup", Boolean)
     # RA Role ID
-    ra_role_id = Column("raRoleID", BigInteger().with_variant(Integer, "mysql"))
+    ra_role_id = Column("raRoleID", BigInteger)
     # Landing channel ID
     landing_channel_id = Column(
-        "landingChannelID", BigInteger().with_variant(Integer, "mysql")
+        "landingChannelID", BigInteger
     )
 
     def __repr__(self):
@@ -86,11 +86,11 @@ class DbInvite(Base):
     __tablename__ = "invites"
 
     # Invite code
-    code = Column("code", String, primary_key=True)
+    code = Column("code", String(10), primary_key=True)
     # Which guild it belongs to
-    guild_id = Column("guildID", BigInteger().with_variant(Integer, "mysql"))
+    guild_id = Column("guildID", BigInteger)
     # The role ID that this invite is associated with
-    role_id = Column("roleID", BigInteger().with_variant(Integer, "mysql"))
+    role_id = Column("roleID", BigInteger)
 
     def __repr__(self):
         return f"""Invite: {{
@@ -112,9 +112,9 @@ class DbCategory(Base):
     __tablename__ = "categories"
 
     # Category ID
-    ID = Column("id", BigInteger().with_variant(Integer, "mysql"), primary_key=True)
+    ID = Column("id", BigInteger, primary_key=True)
     # Community role ID category is associated with
-    role_id = Column("roleID", BigInteger().with_variant(Integer, "mysql"))
+    role_id = Column("roleID", BigInteger)
 
     def __repr__(self):
         return f"""Category: {{
@@ -133,9 +133,9 @@ class DbVerifyingUser(Base):
     __tablename__ = "verifyingusers"
 
     # User ID
-    ID = Column("id", BigInteger().with_variant(Integer, "mysql"), primary_key=True)
+    ID = Column("id", BigInteger, primary_key=True)
     # Invite code user used to join
-    invite_code = Column("invite", String)
+    invite_code = Column("invite", String(10))
 
     def __repr__(self):
         return f"""VerifyingUser: {{

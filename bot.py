@@ -9,6 +9,7 @@ import discord
 import discord.ext
 from discord.ext import tasks
 from discord.ui import Button, View, Modal, InputText
+from discord import File
 import orjson
 import sqlalchemy
 import requests
@@ -18,6 +19,7 @@ from util.log import Log
 from util.db import DbGuild, DbInvite, DbUser, DbCategory, DbVerifyingUser, Base
 from util.emojis import sync_add, sync_delete, sync_name
 import datetime
+from io import BytesIO
 
 
 bot = discord.Bot(intents=discord.Intents.all())
@@ -26,18 +28,23 @@ bot = discord.Bot(intents=discord.Intents.all())
 
 TOKEN = os.getenv("PITTBOT_TOKEN")
 DEBUG = False
-VERSION = "0.1.2"
+VERSION = "1.5.0"
 DATABASE_USER = os.getenv("MYSQL_USER")
 DATABASE_PASSWORD = os.getenv("MYSQL_PASSWORD")
 DATABASE_IP = os.getenv("MYSQL_IP")
-HUB_SERVER_ID = 996607138803748954
-BOT_COMMANDS_ID = 1006618232129585216
-ERRORS_CHANNEL_ID = 1008400699689799712
+DATABASE_PORT = os.getenv("MYSQL_PORT")
+DATABASE_NAME = os.getenv("MYSQL_DATABASE")
+HUB_SERVER_ID = int(os.getenv("HUB_SERVER_ID"))
+BOT_COMMANDS_ID = int(os.getenv("BOT_COMMANDS_ID"))
+ERRORS_CHANNEL_ID = int(os.getenv("ERRORS_CHANNEL_ID"))
 LONG_DELETE_TIME = 60.0
 SHORT_DELETE_TIME = 15.0
 VERIFICATION_MESSAGE = "Click the button below to get verified!"
 
 # ------------------------------- DATABASE -------------------------------
+
+
+print(HUB_SERVER_ID)
 
 with open("config.json", "r") as config:
     data = orjson.loads(config.read())
@@ -61,7 +68,7 @@ with open("config.json", "r") as config:
 
 # Database initialization
 db = sqlalchemy.create_engine(
-    f"mysql+mysqlconnector://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_IP}/responses",
+    f"mysql+mysqlconnector://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_IP}:{DATABASE_PORT}/{DATABASE_NAME}",
     echo=False
 )
 # Database session init
@@ -1783,8 +1790,7 @@ async def on_scheduled_event_create(scheduled_event):
         # User can simply click a button in the original message again
         else:
             await bot_commands.send(
-                """**Error: Invalid URL.**
-Only direct image links are supported. Try again."""
+                """**Error: Invalid URL.**\nOnly direct image links are supported. Try again."""
             )
 
     # Executes if 'No' button is clicked
@@ -1932,46 +1938,10 @@ async def weekly_cumulative_event_announcement():
     # Cancels the function if today's date isn't Monday
     if datetime.date.today().weekday() != 0:
         return
-    #Cancels the function if there are no scheduled events  
-    if len(guild.scheduled_event) == 0:
-        return    
     # Iterates through residence hall servers, skipping hub server
     for guild in bot.guilds:
         if guild.id == HUB_SERVER_ID:
-            continue  
-        # Finds the @residents role
-        mention_string = ""
-        for role in guild.roles:
-            if role.name == 'residents':
-                mention_string = role.mention
-        # Creates an embed and iteratively appends fields for each event
-        link_embed = discord.Embed(title = "**Check out these upcoming events!**")
-        for scheduled_event in guild.scheduled_events:
-            if str(scheduled_event.status) == "ScheduledEventStatus.scheduled":
-                if len(scheduled_event.description) > 64:
-                    truncated_description = scheduled_event.description[:64] + '...'
-                else:
-                    truncated_description = scheduled_event.description
-                link_embed.add_field(name=scheduled_event.name,value=f"""{truncated_description}
-[Details]({scheduled_event.url})""")
-        # Finds the announcements channel and sends the embed message
-        for channel in guild.channels:
-            if channel.name == 'announcements':
-                if channel.category.name == 'info':
-                    await channel.send(content=mention_string,embed=link_embed)
-
-
-# Announces cumulative events manually via slash command
-@bot.slash_command(name="broadcast", description="Manually send a notification of events occuring within the next week.")
-async def broadcast(interaction: discord.Interaction):
-    # Cancels the command with a warning message if the user is not an administrator
-    if not interaction.user.guild_permissions.administrator:
-        await interaction.response.send_message("Administrator permissions required to run this command.", ephemeral=True)
-        return
-    # Iterates through residence hall servers, skipping hub server
-    for guild in bot.guilds:
-        if guild.id == HUB_SERVER_ID:
-            continue
+            continue 
         # Finds the @residents role
         mention_string = ""
         for role in guild.roles:
@@ -1979,26 +1949,69 @@ async def broadcast(interaction: discord.Interaction):
                 mention_string = role.mention
         # Creates an embed and iteratively appends fields for each event
         link_embed = discord.Embed(title = "*Click \"details\" for more information!*")
+        event_count = 0
         for scheduled_event in guild.scheduled_events:
             def within_week(x):
-                d = datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S")
+                d = datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S.%f")
                 now = datetime.datetime.now()
                 return (d - now).days < 7
             if str(scheduled_event.status) == "ScheduledEventStatus.scheduled" and within_week(str(scheduled_event.start_time.replace(tzinfo=None))):
+                event_count += 1
                 if len(scheduled_event.description) > 64:
                     truncated_description = scheduled_event.description[:64] + '...'
                 else:
                     truncated_description = scheduled_event.description
-                date = datetime.datetime.strptime(str(scheduled_event.start_time.replace(tzinfo=None)), "%Y-%m-%d %H:%M:%S")
+                date = datetime.datetime.strptime(str(scheduled_event.start_time.replace(tzinfo=None)), "%Y-%m-%d %H:%M:%S.%f")
                 day = date.strftime("%A")
                 link_embed.add_field(name=scheduled_event.name,value=f"""*{day}*\n{truncated_description}\n[Details]({scheduled_event.url})""")
         # Finds the announcements channel and sends the embed message
+        if event_count > 0:
+            for channel in guild.channels:
+                if channel.name == 'announcements':
+                    if channel.category.name == 'info':
+                        await channel.send(content=mention_string,embed=link_embed)
+
+
+# Broadcast command to send a notification
+@bot.slash_command(name="broadcast", description="Manually send a custom notification.")
+@discord.guild_only()
+@discord.ext.commands.has_permissions(administrator=True)
+async def broadcast(
+    interaction: discord.Interaction,
+    ping_residents: discord.Option(bool, "Should residents be pinged?"),
+    message: discord.Option(str, "Message to broadcast"),
+    image_url: discord.Option(str, "URL of image to attach", required=False)
+):
+    # Cancels the command with a warning message if the user is not an administrator
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message("Administrator permissions required to run this command.", ephemeral=True)
+        return
+    # Replace "\n" with a newline character
+    message = message.replace("\\n", "\n")
+    # Iterates through residence hall servers, skipping hub server
+    for guild in bot.guilds:
+        if guild.id == HUB_SERVER_ID:
+            continue
+        # Finds the @residents role
+        mention_string = ""
+        if ping_residents:
+            for role in guild.roles:
+                if role.name == 'residents':
+                    mention_string = role.mention
+        # Finds the announcements channel and sends the message
         for channel in guild.channels:
             if channel.name == 'announcements':
                 if channel.category.name == 'info':
-                    await channel.send(content="**Check out these upcoming events!** "+mention_string,embed=link_embed)
+                    if image_url:
+                        # Download the image
+                        image = urlopen(image_url).read()
+                        # Create a discord.File object
+                        file = File(fp=BytesIO(image), filename='image.png')
+                        await channel.send(content=message + "\n" + mention_string, file=file)
+                    else:
+                        await channel.send(content=message + "\n" + mention_string)
     # Sends confirmation message in #bot-commands
-    await interaction.response.send_message("Cumulative scheduled event list successfully broadcast.")
+    await interaction.response.send_message("Request completed.")
 
 
 # ------------------------------- INVITE HANDLERS -------------------------------
@@ -2460,7 +2473,6 @@ async def on_ready():
                         invite_to_role[invite.code] = discord.utils.get(
                             guild.roles, id=invite_obj.role_id
                         )
-            Log.info(f"{invite_to_role=}")
 
         except discord.errors.Forbidden:
             continue
@@ -2488,6 +2500,7 @@ async def on_ready():
     for category_obj in session.query(DbCategory).all():
         category_to_role[category_obj.ID] = category_obj.role_id
 
+    Log.info(f"{invite_to_role=}")
     Log.info(f"{category_to_role=}")
     Log.ok("Bot is ready.")
 
