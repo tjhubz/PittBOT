@@ -1692,6 +1692,44 @@ async def faq(
 # @bot.slash_command(description="Display the generic mailing address format for the residence hall.")
 # async def mailing_addresss(ctx):
 
+
+@bot.slash_command(
+    name="add_forum",
+    description="Add a forum channel and set it up.",
+)
+@discord.ext.commands.has_permissions(administrator=True)
+async def add_forum(ctx):
+    category = discord.utils.get(ctx.guild.categories, name='building')
+    topic = """
+# Welcome to the forum!
+Here, you can ask any question you like and we will do our best to answer it!
+
+### Directions
+* Make a post with the question in the title
+* Add any additional information in the description
+* Add a relevant tag to your post
+* Post it!
+"""
+    
+    # Create ForumTag objects
+    tag_data = {
+        'general': '🔖',
+        'food': '🥕',
+        'entertainment': '🎉',
+        'housing': '🏠',
+        'transportation': '🚌',
+        'tech': '💻',
+        'classes': '📚',
+    }
+    tags = [discord.ForumTag(name=name, moderated=False, emoji=discord.PartialEmoji(name=emoji)) for name, emoji in tag_data.items()]
+
+    forum_channel = await ctx.guild.create_forum_channel('questions', category=category)
+    await forum_channel.edit(position=4, topic=topic, available_tags=tags)
+
+    # Finished
+    await ctx.respond("Task completed.", ephemeral=True)
+
+
 # ------------------------------- CONTEXT MENU COMMANDS -------------------------------
 
 
