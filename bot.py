@@ -14,6 +14,7 @@ import orjson
 import sqlalchemy
 import requests
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy import func
 import util.invites
 from util.log import Log
 from util.db import DbGuild, DbInvite, DbUser, DbCategory, DbVerifyingUser, Base
@@ -272,7 +273,7 @@ class VerifyModal(Modal):
                     f"Unable to determine a role from the invite link used by {member.name}[{member.id}]. No roles will be applied."
                 )
             await interaction.response.send_message(
-                "The invite used couldn't associate you with a specific community, please let your RA know!",
+                "The invite link you used couldn't associate you with a specific community, please click the \"Need help?\" button above.",
             )
             return
 
@@ -696,7 +697,7 @@ async def verify(ctx):
                         )
                         if not assigned_role:
                             await ctx.response.send_message(
-                                "We couldn't find a role to give you, please let your RA know!"
+                                "We couldn't find a role to give you, please click the \"Need help?\" button above."
                             )
                             Log.error(
                                 f"Databased invite '{inv_object.code}' did not return a role to assign to {member.name}[{member.id}]. This is an error."
@@ -744,7 +745,7 @@ async def verify(ctx):
                                     f"Databased invite '{inv.code}' did not return a role to assign to {member.name}[{member.id}]. This is an error."
                                 )
                                 await ctx.followup.send(
-                                    f"The invite link '{inv.code}' couldn't associate you with a specific community, please let your RA know!",
+                                    f"The invite link '{inv.code}' couldn't associate you with a specific community, please click the \"Need help?\" button above.",
                                 )
                                 if logs_channel:
                                     await logs_channel.send(
@@ -755,7 +756,7 @@ async def verify(ctx):
                                 f"Invite link {inv.code} was neither cached nor found in the database. This code will be ignored. This is an error. "
                             )
                             await ctx.followup.send(
-                                f"The invite link '{inv.code}' couldn't associate you with a specific community, please let your RA know!",
+                                f"The invite link '{inv.code}' couldn't associate you with a specific community, please click the \"Need help?\" button above.",
                             )
                             if logs_channel:
                                 await logs_channel.send(
@@ -790,7 +791,7 @@ async def verify(ctx):
                 Log.error(f"{num_overlap=}")
                 Log.error(f"{potential_invites=}")
                 await ctx.response.send_message(
-                    content="No valid invite link could associate you with a specific community, please let your RA know!",
+                    content="No valid invite link could associate you with a specific community, please click the \"Need help?\" button above.",
                     ephemeral=True,
                 )
                 # Abort
@@ -856,7 +857,7 @@ async def verify(ctx):
                                 f"Databased invite '{invite_code}' was not associated with a role. User {member.name}[{member.id}] will need to be manually set."
                             )
                         await ctx.response.send_message(
-                            f"The invite link '{invite_code}' couldn't associate you with a specific community, please let your RA know!",
+                            f"The invite link '{invite_code}' couldn't associate you with a specific community, please click the \"Need help?\" button above.",
                         )
                         return
                 else:
@@ -864,7 +865,7 @@ async def verify(ctx):
                         f"Invite link {invite_code} was neither cached nor found in the database. This code will be ignored. This is an error. "
                     )
                     await ctx.response.send_message(
-                        f"The invite link '{invite_code}' couldn't associate you with a specific community, please let your RA know!",
+                        f"The invite link '{invite_code}' couldn't associate you with a specific community, please click the \"Need help?\" button above.",
                     )
                     return
 
@@ -1078,7 +1079,6 @@ async def setup(ctx):
     async for msg in guild_to_landing[ctx.guild.id].history():
         if msg.author == bot.user and msg.content == VERIFICATION_MESSAGE:
             await msg.delete()
-            break
     await guild_to_landing[ctx.guild.id].send(VERIFICATION_MESSAGE, view=view)
 
     # Setup welcome message
@@ -1111,9 +1111,10 @@ async def fix_welcome(ctx):
 
     #delete the old one
     async for msg in welcome_channel.history():
-        if msg.author == bot.user:
+        try:
             await msg.delete()
-            break
+        except discord.errors.NotFound:
+            pass
 
     await welcome_channel.send(file=discord.File("welcome.png"))
     await welcome_channel.send("""Here, you can stay informed of events and programs, chat with other residents, play games, watch movies, and so much more!
@@ -1122,7 +1123,7 @@ async def fix_welcome(ctx):
 No problem! Check out [this article for help](https://support.discord.com/hc/en-us/articles/360045138571-Beginner-s-Guide-to-Discord).
 
 **Rules**
-As a reminder, you must follow the Student Code of Conduct on this server. Our goal is to create a supportive, inclusive community for everyone. If you violate the Code of Conduct, you may be subject to removal from this server. The code of conduct can be found [here](https://www.studentaffairs.pitt.edu/wp-content/uploads/2021/09/2021_Academic-Year_Linked.pdf).
+As a reminder, you must follow the Student Code of Conduct on this server. Our goal is to create a supportive, inclusive community for everyone. If you violate the Code of Conduct, you may be subject to removal from this server. The code of conduct can be found [here](https://www.studentaffairs.pitt.edu/wp-content/uploads/2023/04/Student-Code-of-Conduct-Published_11.18.22.pdf).
 
 We hope you have a great year! Contact your RA if you have any questions.""")
 
@@ -1628,7 +1629,9 @@ async def auto_link(ctx):
 
         try:
             session.merge(category_obj)
+            session.commit()  # commit the session right after a successful merge
         except Exception:
+            session.rollback()  # rollback the session in case of an exception
             Log.error(f"Couldn't merge {{{category_id}:{role_id}}} to database.")
             await ctx.followup.send(
                 content=f"We couldn't merge {{{category_id}:{role_id}}} into the database.",
@@ -1636,16 +1639,6 @@ async def auto_link(ctx):
             )
         else:
             Log.ok(f"Linked {category_id} to {role_id}")
-    try:
-        session.commit()
-    except Exception:
-        session.rollback()
-        Log.error("Couldn't merge any categories into to database.")
-        await ctx.respond(
-            content="We couldn't merge any categories into the database.",
-            ephemeral=True,
-        )
-        return
 
     message_content = f"Linked {linked} categories to associated roles.\n"
 
@@ -1811,6 +1804,78 @@ async def ctx_reset_user_drop(ctx, member: discord.Member):
             f"No database row exists for user {member.name}[{member.id}], nothing to drop.",
             ephemeral=True,
         )
+
+
+@bot.slash_command(
+    name="assign",
+    description="Assign roles to users based on their email"
+)
+@discord.guild_only()
+@discord.ext.commands.has_permissions(administrator=True)
+async def assign(ctx, 
+    role: discord.Option(discord.Role, "Role to assign"), 
+    emails: discord.Option(str, "Raw pastebin link of return separated emails to give the role to")
+    ):
+    # Defer a response to prevent the 3 second timeout gate from being closed.
+    await ctx.defer()
+
+    # Check if the link is a raw link
+    if "raw" not in emails:
+        await ctx.send_followup(
+            "Uh oh! You need to send a `raw` link. Please make sure you are providing a raw text link.",
+            ephemeral=True,
+        )
+        return
+
+    # Fetch the raw text from the provided link
+    try:
+        response = requests.get(emails)
+        response.raise_for_status()
+    except requests.RequestException:
+        await ctx.send_followup(
+            "The given link returned a failure status code when queried. Are you sure it's valid?",
+            ephemeral=True,
+        )
+        return
+
+    email_list = response.text.split('\n')
+
+    # Initialize counters
+    success_count = 0
+    failed_emails = []
+
+    # Iterate over the emails
+    for email in email_list:
+        # Remove leading and trailing whitespace
+        email = email.strip()
+
+        # Query the database for a user with the current email
+        user = session.query(DbUser).filter(func.lower(DbUser.email) == email.lower()).first()
+
+        # If a user was found
+        if user:
+            # Fetch the discord member
+            member = discord.utils.get(ctx.guild.members, id=user.ID)
+
+            # If the member was found
+            if member:
+                # Try to add the role to the member
+                try:
+                    await member.add_roles(role, reason="Assigned by /assign command")
+                    success_count += 1
+                except discord.errors.Forbidden:
+                    failed_emails.append(email)
+            else:
+                failed_emails.append(email)
+        else:
+            failed_emails.append(email)
+
+    # Send a report
+    if failed_emails:
+        failed_emails_str = "\n".join(failed_emails)
+        await ctx.respond(f"Successfully added role to {success_count} users. Failed to add role to the following emails:\n```{failed_emails_str}```")
+    else:
+        await ctx.respond(f"Successfully added role to {success_count} users. All emails were processed successfully.")
 
 
 # ------------------------------- EVENT HANDLERS -------------------------------
@@ -2331,7 +2396,6 @@ async def on_guild_join(guild):
     async for msg in guild_to_landing[guild.id].history():
         if msg.author == bot.user and msg.content == VERIFICATION_MESSAGE:
             await msg.delete()
-            break
     await guild_to_landing[guild.id].send(content=VERIFICATION_MESSAGE, view=view)
 
 
@@ -2572,7 +2636,6 @@ async def on_ready():
             async for msg in guild_to_landing[guild.id].history():
                 if msg.author == bot.user and msg.content == VERIFICATION_MESSAGE:
                     await msg.delete()
-                    break
             await guild_to_landing[guild.id].send(
                 content=VERIFICATION_MESSAGE, view=view
             )
