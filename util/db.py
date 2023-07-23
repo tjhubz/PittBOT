@@ -3,8 +3,10 @@
 
 # pylint: disable=too-few-public-methods
 
-from sqlalchemy import Column, BigInteger, String, Integer, Boolean
+from sqlalchemy import Column, BigInteger, String, Integer, Boolean, Date, DateTime, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 
 Base = declarative_base()
 
@@ -35,6 +37,10 @@ class DbUser(Base):
     is_ra = Column("isRA", Boolean)
     # Which community is this user a part of
     community = Column("community", String(50))
+    # When did this user join the server?
+    joined_at = Column("joined_at", DateTime, default=func.now())
+    # When was this user last updated?
+    updated_at = Column("updated_at", DateTime, default=func.now(), onupdate=func.now())
 
     def __repr__(self):
         return f"User: {{\n\tid: {self.ID}\n\tusername: {self.username}\n\temail: {self.email}\n\tverified: {self.verified}}}"
@@ -143,3 +149,39 @@ class DbVerifyingUser(Base):
     invite_code: {self.invite_code}
 }}
 """
+
+class DbEvent(Base):
+    __tablename__ = "events"
+
+    event_number = Column("event_number", Integer, primary_key=True)
+    created_at = Column("created_at", DateTime, default=func.now())
+    event_name = Column("event_name", String(100))
+    event_type = Column("event_type", String(10))  # 'campus' or 'building'
+    location = Column("location", String(100))
+    creator_name = Column("creator_name", String(50))
+    creator_id = Column("creator_id", BigInteger)
+    date = Column("date", Date)
+    start_time = Column("start_time", DateTime)
+    end_time = Column("end_time", DateTime)
+    image_added = Column("image_added", Boolean)
+    subscribers = Column("subscribers", Integer, default=0)
+    status = Column("status", String(10))
+    attendance = Column("attendance", Integer)
+
+    def __repr__(self):
+        return f"Event: {{\n\tevent_number: {self.event_number}\n\tevent_name: {self.event_name}\n\t...}}"
+
+class DbSubscriber(Base):
+    __tablename__ = "subscribers"
+
+    id = Column("id", Integer, primary_key=True)  # Artificial primary key
+    subscription_time = Column("subscription_time", DateTime, default=func.now())
+    user_id = Column("user_id", BigInteger)
+    user_name = Column("user_name", String(50))
+    user_email = Column("user_email", String(50))
+    event_number = Column("event_number", Integer, ForeignKey('events.event_number'))
+
+    event = relationship("DbEvent")
+
+    def __repr__(self):
+        return f"Subscriber: {{\n\tsubscription_time: {self.subscription_time}\n\tuser_id: {self.user_id}\n\tevent_number: {self.event_number}\n}}"

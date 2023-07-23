@@ -2,6 +2,7 @@
 
 from collections import OrderedDict
 import os
+import traceback
 from mysql.connector import IntegrityError
 from typing import Sequence
 from urllib.request import urlopen
@@ -14,10 +15,10 @@ import orjson
 import sqlalchemy
 import requests
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import func
+from sqlalchemy import inspect, func, desc
 import util.invites
 from util.log import Log
-from util.db import DbGuild, DbInvite, DbUser, DbCategory, DbVerifyingUser, Base
+from util.db import DbGuild, DbInvite, DbUser, DbCategory, DbVerifyingUser, DbEvent, DbSubscriber, Base
 from util.emojis import sync_add, sync_delete, sync_name
 import datetime
 from io import BytesIO
@@ -65,6 +66,7 @@ with open("config.json", "r") as config:
     VERSION = data["version"]
 
 # Database initialization
+Log.info("Attempting database connection...")
 db = sqlalchemy.create_engine(
     f"mysql+mysqlconnector://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_IP}:{DATABASE_PORT}/{DATABASE_NAME}",
     echo=False
@@ -72,8 +74,19 @@ db = sqlalchemy.create_engine(
 # Database session init
 Session = sessionmaker(bind=db)
 session = Session()
+# Get a list of all existing tables
+inspector = inspect(db)
+existing_tables = inspector.get_table_names()
+# Define all your tables
+tables = [DbUser, DbGuild, DbInvite, DbCategory, DbVerifyingUser, DbEvent, DbSubscriber]
+# Check if each table exists, and log a message if it doesn't
+for table in tables:
+    if table.__tablename__ not in existing_tables:
+        Log.info(f"Creating table: {table.__tablename__}")
+
 # Create tables
 Base.metadata.create_all(db)
+Log.info("Database is ready.")
 
 # ------------------------------- GLOBAL VARIABLES  -------------------------------
 
@@ -455,7 +468,7 @@ class UnsetupConfirmation(discord.ui.Modal):
                     await interaction.response.send_message(
                         "An unexpected database error occurred.", ephemeral=True
                     )
-                    print(ex.with_traceback())
+                    Log.error(f"An error occurred: {ex}\n{traceback.format_exc()}")
                     return
                 else:
                     await interaction.response.send_message(
@@ -1196,7 +1209,7 @@ async def set_email(
             "An unexpected database error occurred. Attempting to print traceback.",
             ephemeral=True,
         )
-        print(ex.with_traceback())
+        Log.error(f"An error occurred: {ex}\n{traceback.format_exc()}")
     else:
         await ctx.respond(f"User {member} set email to {email}", ephemeral=True)
 
@@ -1417,7 +1430,7 @@ async def set_ra(
             "An unexpected database error occurred. Attempting to print traceback.",
             ephemeral=True,
         )
-        print(ex.with_traceback())
+        Log.error(f"An error occurred: {ex}\n{traceback.format_exc()}")
     else:
         await ctx.respond(f"User {member} set to RA in database", ephemeral=True)
 
@@ -1878,248 +1891,6 @@ async def assign(ctx,
         await ctx.respond(f"Successfully added role to {success_count} users. All emails were processed successfully.")
 
 
-# ------------------------------- EVENT HANDLERS -------------------------------
-
-
-# Syncs events to residence hall servers when created on hub server
-# Does NOT support voice channel events
-@bot.event
-async def on_scheduled_event_create(scheduled_event):
-    # Ignores events created on residence hall servers
-    if (scheduled_event.guild).id != HUB_SERVER_ID:
-        return
-    # Creates buttons to be sent in a message upon event creation
-    # Buttons will allow user to optionally add cover image to event or cancel before syncing
-    image_check_yes = Button(label="Yes", style=discord.ButtonStyle.green)
-    image_check_no = Button(label="No", style=discord.ButtonStyle.red)
-    image_check_cancel = Button(label="Cancel Event", style=discord.ButtonStyle.blurple)
-    cover_view = View(image_check_yes, image_check_no, image_check_cancel)
-    # Sends message with buttons in #bot-commands
-    bot_commands = bot.get_channel(BOT_COMMANDS_ID)
-    await bot_commands.send(
-        f"Event **{scheduled_event.name}** successfully created. Would you like to upload a cover image before publishing the event to residence hall servers?",
-        view=cover_view,
-    )
-
-    # Executes if 'Yes' button is clicked
-    async def yes_callback(interaction: discord.Interaction):
-        # Sends modal to get image URL from user
-        url_modal = URLModal(title="Cover Image URL Entry")
-        await interaction.response.send_modal(url_modal)
-        await url_modal.wait()
-        cover_url = url_modal.url
-        # Executes if URL is direct image link
-        if (cover_url.lower()).startswith("http"):
-            # Deletes message with buttons to avoid double-clicking
-            await interaction.delete_original_response()
-            # Opens URL and converts contents to bytes object
-            cover_bytes = urlopen(cover_url).read()
-            # Adds cover image to hub event
-            await scheduled_event.edit(cover=cover_bytes)
-            # Iterates through residence hall servers, skipping hub server
-            for guild in bot.guilds:
-                if guild.id == HUB_SERVER_ID:
-                    continue
-                # Creates cloned event without cover image
-                event_clone = await guild.create_scheduled_event(
-                    name=scheduled_event.name,
-                    description=scheduled_event.description,
-                    location=scheduled_event.location,
-                    start_time=scheduled_event.start_time,
-                    end_time=scheduled_event.end_time,
-                )
-                # Adds cover image to cloned event
-                await event_clone.edit(cover=cover_bytes)
-            # Sends confirmation message in #bot-commands
-            await bot_commands.send(
-                f"Event **{scheduled_event.name}** successfully created **with** cover image."
-            )
-        # Sends warning message if URL is not direct image link
-        # User can simply click a button in the original message again
-        else:
-            await bot_commands.send(
-                """**Error: Invalid URL.**\nOnly direct image links are supported. Try again."""
-            )
-
-    # Executes if 'No' button is clicked
-    async def no_callback(interaction: discord.Interaction):
-        await interaction.response.defer()
-        # Deletes message with buttons to avoid double-clicking
-        await interaction.delete_original_response()
-        # Iterates through residence hall servers, skipping hub server
-        for guild in bot.guilds:
-            if guild.id == HUB_SERVER_ID:
-                continue
-            # Creates cloned event
-            await guild.create_scheduled_event(
-                name=scheduled_event.name,
-                description=scheduled_event.description,
-                location=scheduled_event.location,
-                start_time=scheduled_event.start_time,
-                end_time=scheduled_event.end_time,
-            )
-        # Sends confirmation message in #bot-commands
-        await bot_commands.send(
-            f"Event **{scheduled_event.name}** successfully created **without** cover image."
-        )
-
-    # Executes if 'Cancel Event' button is clicked
-    async def cancel_callback(interaction: discord.Interaction):
-        await interaction.response.defer()
-        # Deletes message with buttons to avoid double-clicking
-        await interaction.delete_original_response()
-        # Cancels event in hub server
-        await scheduled_event.cancel()
-        # Sends confirmation message in #bot-message
-        await bot_commands.send(
-            f"Event **{scheduled_event.name}** successfully canceled."
-        )
-
-    # Assigns an async method to each button
-    image_check_yes.callback = yes_callback
-    image_check_no.callback = no_callback
-    image_check_cancel.callback = cancel_callback
-
-
-# Syncs updates to both scheduled and active events
-# Syncs manual event starts
-# Does NOT support editing event title or cover image
-@bot.event
-async def on_scheduled_event_update(old_scheduled_event, new_scheduled_event):
-    # Ignores updates initiated on residence hall servers
-    if (new_scheduled_event.guild).id != HUB_SERVER_ID:
-        return
-    # Stores whether the event was manually started
-    event_start = False
-    # Iterates through the residence hall servers, skipping the hub server
-    for guild in bot.guilds:
-        if guild.id == HUB_SERVER_ID:
-            continue
-        # Iterates through the events in the server
-        for scheduled_event in guild.scheduled_events:
-            # Executes each time an event with the old name is found
-            if scheduled_event.name == old_scheduled_event.name:
-                await scheduled_event.edit(
-                    name=new_scheduled_event.name,
-                    description=new_scheduled_event.description,
-                    location=new_scheduled_event.location,
-                    start_time=new_scheduled_event.start_time,
-                    end_time=new_scheduled_event.end_time,
-                    )
-            # Executes each time an event with the same name is found
-            if scheduled_event.name == new_scheduled_event.name:
-                # Syncs edits to scheduled events
-                if str(new_scheduled_event.status) == "ScheduledEventStatus.scheduled":
-                    if str(scheduled_event.status) == "ScheduledEventStatus.scheduled":
-                        # Edits the event to match the one on the hub server
-                        await scheduled_event.edit(
-                            description=new_scheduled_event.description,
-                            location=new_scheduled_event.location,
-                            start_time=new_scheduled_event.start_time,
-                            end_time=new_scheduled_event.end_time,
-                        )
-                # Syncs manual starts and edits to active events
-                elif str(new_scheduled_event.status) == "ScheduledEventStatus.active":
-                    if str(scheduled_event.status) == "ScheduledEventStatus.scheduled":
-                        # Starts the event
-                        await scheduled_event.start()
-                        event_start = True
-                    elif str(scheduled_event.status) == "ScheduledEventStatus.active":
-                        # Edits the event to match the one on the hub server
-                        await scheduled_event.edit(
-                            description=new_scheduled_event.description,
-                            location=new_scheduled_event.location,
-                            end_time=new_scheduled_event.end_time,
-                        )
-    # Sends an appropriate confirmation in #bot-commands depending on what was updated
-    bot_commands = bot.get_channel(BOT_COMMANDS_ID)
-    if event_start == True:
-        await bot_commands.send(
-            f"Event **{new_scheduled_event.name}** successfully started."
-        )
-    elif (str(new_scheduled_event.status) == "ScheduledEventStatus.scheduled") or (
-        str(new_scheduled_event.status) == "ScheduledEventStatus.active"
-    ):
-        await bot_commands.send(
-            f"Event **{new_scheduled_event.name}** successfully updated."
-        )
-    # Syncs manual completion of active events in addition to sending a confirmation message
-    elif str(new_scheduled_event.status) == "ScheduledEventStatus.completed":
-        for guild in bot.guilds:
-            if guild.id == HUB_SERVER_ID:
-                continue
-            for scheduled_event in guild.scheduled_events:
-                if scheduled_event.name == new_scheduled_event.name:
-                    if str(scheduled_event.status) == "ScheduledEventStatus.active":
-                        await scheduled_event.complete()
-        await bot_commands.send(
-            f"Event **{new_scheduled_event.name}** successfully completed."
-        )
-
-
-# Syncs cancellation of scheduled events
-# Completion of active events is handled above by on_scheduled_event_update
-@bot.event
-async def on_scheduled_event_delete(deleted_event):
-    # Ignores cancellations not initiated on residence hall servers
-    if (deleted_event.guild).id != HUB_SERVER_ID:
-        return
-    # Iterates through residence hall servers, skipping hub server
-    for guild in bot.guilds:
-        if guild.id == HUB_SERVER_ID:
-            continue
-        # Iterates through events in the server
-        for scheduled_event in guild.scheduled_events:
-            # Executes each time an event with the same name is found
-            if scheduled_event.name == deleted_event.name:
-                if str(scheduled_event.status) == "ScheduledEventStatus.scheduled":
-                    await scheduled_event.cancel()
-    # Sends confirmation message in #bot-commands
-    bot_commands = bot.get_channel(BOT_COMMANDS_ID)
-    await bot_commands.send(f"Event **{deleted_event.name}** successfully canceled.")
-
-
-# Announces cumulative events once per week on Monday at 8AM
-# Runs once every day at 8AM and cancels on non-Mondays
-@tasks.loop(time=datetime.time(hour=13))
-async def weekly_cumulative_event_announcement():
-    # Cancels the function if today's date isn't Monday
-    if datetime.date.today().weekday() != 0:
-        return
-    # Iterates through residence hall servers, skipping hub server
-    for guild in bot.guilds:
-        if guild.id == HUB_SERVER_ID:
-            continue 
-        # Finds the @residents role
-        mention_string = ""
-        for role in guild.roles:
-            if role.name == 'residents':
-                mention_string = role.mention
-        # Creates an embed and iteratively appends fields for each event
-        link_embed = discord.Embed(title = "*Click \"details\" for more information!*")
-        event_count = 0
-        for scheduled_event in guild.scheduled_events:
-            def within_week(x):
-                d = datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S.%f")
-                now = datetime.datetime.now()
-                return (d - now).days < 7
-            if str(scheduled_event.status) == "ScheduledEventStatus.scheduled" and within_week(str(scheduled_event.start_time.replace(tzinfo=None))):
-                event_count += 1
-                if len(scheduled_event.description) > 64:
-                    truncated_description = scheduled_event.description[:64] + '...'
-                else:
-                    truncated_description = scheduled_event.description
-                date = datetime.datetime.strptime(str(scheduled_event.start_time.replace(tzinfo=None)), "%Y-%m-%d %H:%M:%S.%f")
-                day = date.strftime("%A")
-                link_embed.add_field(name=scheduled_event.name,value=f"""*{day}*\n{truncated_description}\n[Details]({scheduled_event.url})""")
-        # Finds the announcements channel and sends the embed message
-        if event_count > 0:
-            for channel in guild.channels:
-                if channel.name == 'announcements':
-                    if channel.category.name == 'info':
-                        await channel.send(content=mention_string,embed=link_embed)
-
-
 # Broadcast command to send a notification
 @bot.slash_command(name="broadcast", description="Manually send a custom notification.")
 @discord.guild_only()
@@ -2160,6 +1931,384 @@ async def broadcast(
                         await channel.send(content=message + "\n" + mention_string)
     # Sends confirmation message in #bot-commands
     await interaction.response.send_message("Request completed.")
+
+
+# ------------------------------- EVENT HANDLERS -------------------------------
+
+
+# Syncs events to residence hall servers when created on hub server
+# Does NOT support voice channel events
+@bot.event
+async def on_scheduled_event_create(scheduled_event):
+    # Ignore events created by the bot
+    if int(scheduled_event.creator_id) == bot.user.id:
+        return
+
+    # Determine event type
+    event_type = 'campus' if scheduled_event.guild.id == HUB_SERVER_ID else 'building'
+
+    # Check if an image was added
+    image_added = scheduled_event.cover is not None
+
+    # Get the creator's username if available, otherwise use their ID
+    creator = await bot.get_or_fetch_user(scheduled_event.creator_id)
+    
+    # Create a new event record in the database
+    new_event = DbEvent(
+        event_name=scheduled_event.name,
+        event_type=event_type,
+        location=scheduled_event.location.value,
+        creator_name=creator.name,
+        creator_id=scheduled_event.creator_id,
+        date=scheduled_event.start_time.date(),
+        start_time=scheduled_event.start_time,
+        end_time=scheduled_event.end_time,
+        image_added=image_added,
+        subscribers=scheduled_event.subscriber_count,
+        status=scheduled_event.status.name
+    )
+
+    try:
+        session.add(new_event)
+        session.commit()
+    except Exception as ex:
+        session.rollback()
+        Log.error(f"An error occurred: {ex}\n{traceback.format_exc()}")
+
+    # Add image to the event
+    if (scheduled_event.guild).id != HUB_SERVER_ID:
+        return
+
+    image_check_yes = Button(label="Yes", style=discord.ButtonStyle.green)
+    image_check_no = Button(label="No", style=discord.ButtonStyle.red)
+    image_check_cancel = Button(label="Cancel Event", style=discord.ButtonStyle.blurple)
+    cover_view = View(image_check_yes, image_check_no, image_check_cancel)
+
+    bot_commands = bot.get_channel(BOT_COMMANDS_ID)
+    await bot_commands.send(
+        f"Event **{scheduled_event.name}** successfully created. Would you like to upload a cover image before publishing the event to residence hall servers?",
+        view=cover_view,
+    )
+
+    # Executes if 'Yes' button is clicked
+    async def yes_callback(interaction: discord.Interaction):
+        # Sends modal to get image URL from user
+        url_modal = URLModal(title="Cover Image URL Entry")
+        await interaction.response.send_modal(url_modal)
+        await url_modal.wait()
+        cover_url = url_modal.url
+
+        if (cover_url.lower()).startswith("http"):
+            # Deletes message with buttons to avoid double-clicking
+            await interaction.delete_original_response()
+            # Opens URL and converts contents to bytes object
+            cover_bytes = urlopen(cover_url).read()
+            # Adds cover image to hub event
+            await scheduled_event.edit(cover=cover_bytes)
+
+            for guild in bot.guilds:
+                if guild.id == HUB_SERVER_ID:
+                    continue
+                # Creates cloned event without cover image
+                event_clone = await guild.create_scheduled_event(
+                    name=scheduled_event.name,
+                    description=scheduled_event.description,
+                    location=scheduled_event.location,
+                    start_time=scheduled_event.start_time,
+                    end_time=scheduled_event.end_time,
+                )
+                # Adds cover image to cloned event
+                await event_clone.edit(cover=cover_bytes)
+
+            await bot_commands.send(
+                f"Event **{scheduled_event.name}** successfully created **with** cover image."
+            )
+
+            # Update the event record in the database
+            db_event = session.query(DbEvent).filter(DbEvent.status != 'cancelled', DbEvent.event_name == scheduled_event.name).order_by(desc(DbEvent.created_at)).first()
+            if db_event is not None:
+                db_event.image_added = True
+                session.commit()
+
+        else:
+            await bot_commands.send(
+                """**Error: Invalid URL.**\nOnly direct image links are supported. Try again."""
+            )
+
+    # Executes if 'No' button is clicked
+    async def no_callback(interaction: discord.Interaction):
+        await interaction.response.defer()
+        # Deletes message with buttons to avoid double-clicking
+        await interaction.delete_original_response()
+
+        for guild in bot.guilds:
+            if guild.id == HUB_SERVER_ID:
+                continue
+            # Creates cloned event
+            await guild.create_scheduled_event(
+                name=scheduled_event.name,
+                description=scheduled_event.description,
+                location=scheduled_event.location,
+                start_time=scheduled_event.start_time,
+                end_time=scheduled_event.end_time,
+            )
+
+        await bot_commands.send(
+            f"Event **{scheduled_event.name}** successfully created **without** cover image."
+        )
+
+    # Executes if 'Cancel Event' button is clicked
+    async def cancel_callback(interaction: discord.Interaction):
+        await interaction.response.defer()
+        # Deletes message with buttons to avoid double-clicking
+        await interaction.delete_original_response()
+        # Cancels event in hub server
+        await scheduled_event.cancel()
+        # Sends confirmation message in #bot-message
+        await bot_commands.send(
+            f"Event **{scheduled_event.name}** successfully canceled."
+        )
+
+    # Assigns an async method to each button
+    image_check_yes.callback = yes_callback
+    image_check_no.callback = no_callback
+    image_check_cancel.callback = cancel_callback
+
+
+# Syncs updates to both scheduled and active events
+# Syncs manual event starts
+# Does NOT support editing event title or cover image
+@bot.event
+async def on_scheduled_event_update(old_scheduled_event, new_scheduled_event):
+    # Stores whether the event was manually started
+    event_start = False
+
+    # Update the event record in the database
+    db_event = session.query(DbEvent).filter(DbEvent.status != 'cancelled', DbEvent.event_name == old_scheduled_event.name).order_by(desc(DbEvent.created_at)).first()
+    if db_event is not None:
+        db_event.event_name = new_scheduled_event.name
+        db_event.location = new_scheduled_event.location.value
+        db_event.start_time = new_scheduled_event.start_time
+        db_event.end_time = new_scheduled_event.end_time
+        db_event.status = new_scheduled_event.status.name
+        try:
+            session.commit()
+        except Exception as ex:
+            session.rollback()
+            Log.error(f"An error occurred: {ex}\n{traceback.format_exc()}")
+
+    # Ignores updates initiated on residence hall servers for cloning updates
+    if (new_scheduled_event.guild).id != HUB_SERVER_ID:
+        return
+
+    # Iterates through the residence hall servers, skipping the hub server
+    for guild in bot.guilds:
+        if guild.id == HUB_SERVER_ID:
+            continue
+        # Iterates through the events in the server
+        for scheduled_event in guild.scheduled_events:
+            # Executes each time an event with the old name is found
+            if scheduled_event.name == old_scheduled_event.name:
+                await scheduled_event.edit(
+                    name=new_scheduled_event.name,
+                    description=new_scheduled_event.description,
+                    location=new_scheduled_event.location,
+                    start_time=new_scheduled_event.start_time,
+                    end_time=new_scheduled_event.end_time,
+                    )
+            # Executes each time an event with the same name is found
+            if scheduled_event.name == new_scheduled_event.name:
+                # Syncs edits to scheduled events
+                if new_scheduled_event.status.name == "scheduled":
+                    if scheduled_event.status.name == "scheduled":
+                        # Edits the event to match the one on the hub server
+                        await scheduled_event.edit(
+                            description=new_scheduled_event.description,
+                            location=new_scheduled_event.location,
+                            start_time=new_scheduled_event.start_time,
+                            end_time=new_scheduled_event.end_time,
+                        )
+                # Syncs manual starts and edits to active events
+                elif new_scheduled_event.status.name == "active":
+                    if scheduled_event.status.name == "scheduled":
+                        # Starts the event
+                        await scheduled_event.start()
+                        event_start = True
+                    elif scheduled_event.status.name == "active":
+                        # Edits the event to match the one on the hub server
+                        await scheduled_event.edit(
+                            description=new_scheduled_event.description,
+                            location=new_scheduled_event.location,
+                            end_time=new_scheduled_event.end_time,
+                        )
+    # Sends an appropriate confirmation in #bot-commands depending on what was updated
+    bot_commands = bot.get_channel(BOT_COMMANDS_ID)
+    if event_start == True:
+        await bot_commands.send(
+            f"Event **{new_scheduled_event.name}** successfully started."
+        )
+    elif (new_scheduled_event.status.name == "scheduled") or (
+        new_scheduled_event.status.name == "active"
+    ):
+        await bot_commands.send(
+            f"Event **{new_scheduled_event.name}** successfully updated."
+        )
+    # Syncs manual completion of active events in addition to sending a confirmation message
+    elif new_scheduled_event.status.name == "completed":
+        for guild in bot.guilds:
+            if guild.id == HUB_SERVER_ID:
+                continue
+            for scheduled_event in guild.scheduled_events:
+                if scheduled_event.name == new_scheduled_event.name:
+                    if scheduled_event.status.name == "active":
+                        await scheduled_event.complete()
+        await bot_commands.send(
+            f"Event **{new_scheduled_event.name}** successfully completed."
+        )
+
+
+# Syncs cancellation of scheduled events
+# Completion of active events is handled above by on_scheduled_event_update
+@bot.event
+async def on_scheduled_event_delete(deleted_event):
+    # Update the event record in the database
+    db_event = session.query(DbEvent).filter(DbEvent.status != 'cancelled', DbEvent.event_name == deleted_event.name).order_by(desc(DbEvent.created_at)).first()
+    if db_event is not None:
+        db_event.status = deleted_event.status.name
+    try:
+        session.commit()
+    except Exception as ex:
+        session.rollback()
+        Log.error(f"An error occurred: {ex}\n{traceback.format_exc()}")
+    
+    # Ignores cancellations not initiated on residence hall servers
+    if (deleted_event.guild).id != HUB_SERVER_ID:
+        return
+    # Iterates through residence hall servers, skipping hub server
+    for guild in bot.guilds:
+        if guild.id == HUB_SERVER_ID:
+            continue
+        # Iterates through events in the server
+        for scheduled_event in guild.scheduled_events:
+            # Executes each time an event with the same name is found
+            if scheduled_event.name == deleted_event.name:
+                if scheduled_event.status.name == "scheduled":
+                    await scheduled_event.cancel()
+    # Sends confirmation message in #bot-commands
+    bot_commands = bot.get_channel(BOT_COMMANDS_ID)
+    await bot_commands.send(f"Event **{deleted_event.name}** successfully canceled.")
+
+
+# Announces cumulative events once per week on Monday at 8AM
+# Runs once every day at 8AM and cancels on non-Mondays
+@tasks.loop(time=datetime.time(hour=13))
+async def weekly_cumulative_event_announcement():
+    # Cancels the function if today's date isn't Monday
+    if datetime.date.today().weekday() != 0:
+        return
+    # Iterates through residence hall servers, skipping hub server
+    for guild in bot.guilds:
+        if guild.id == HUB_SERVER_ID:
+            continue 
+        # Finds the @residents role
+        mention_string = ""
+        for role in guild.roles:
+            if role.name == 'residents':
+                mention_string = role.mention
+        # Creates an embed and iteratively appends fields for each event
+        link_embed = discord.Embed(title = "*Click \"details\" for more information!*")
+        event_count = 0
+        for scheduled_event in guild.scheduled_events:
+            def within_week(x):
+                d = datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S.%f")
+                now = datetime.datetime.now()
+                return (d - now).days < 7
+            if scheduled_event.status.name == "scheduled" and within_week(str(scheduled_event.start_time.replace(tzinfo=None))):
+                event_count += 1
+                if len(scheduled_event.description) > 64:
+                    truncated_description = scheduled_event.description[:64] + '...'
+                else:
+                    truncated_description = scheduled_event.description
+                date = datetime.datetime.strptime(str(scheduled_event.start_time.replace(tzinfo=None)), "%Y-%m-%d %H:%M:%S.%f")
+                day = date.strftime("%A")
+                link_embed.add_field(name=scheduled_event.name,value=f"""*{day}*\n{truncated_description}\n[Details]({scheduled_event.url})""")
+        # Finds the announcements channel and sends the embed message
+        if event_count > 0:
+            for channel in guild.channels:
+                if channel.name == 'announcements':
+                    if channel.category.name == 'info':
+                        await channel.send(content=mention_string,embed=link_embed)
+
+
+# Handle when user subscribes to an event
+@bot.event
+async def on_raw_scheduled_event_user_add(payload):
+    # Fetch the event details
+    guild = payload.guild
+    event = await guild.fetch_scheduled_event(payload.event_id)
+
+    # Ignore subscriptions in hub server
+    if guild.id == HUB_SERVER_ID:
+        return
+    
+    # Ignore subscriptions by event creator
+    if payload.user_id == int(event.creator_id):
+        return
+    
+    # Find the event in the database
+    db_event = session.query(DbEvent).filter(DbEvent.status != 'cancelled', DbEvent.event_name == event.name).order_by(desc(DbEvent.created_at)).first()
+
+    if db_event is not None:
+        # Fetch the user's details from the database
+        db_user = session.query(DbUser).filter_by(ID=payload.user_id).first()
+
+        # If the user's details are found, use them. Otherwise, use None.
+        user = await bot.get_or_fetch_user(payload.user_id)
+        user_email = db_user.email if db_user is not None else None
+
+        # Create a new subscriber record in the database
+        new_subscriber = DbSubscriber(
+            user_id=payload.user_id,
+            user_name=user.name,
+            user_email=user_email,
+            event_number=db_event.event_number
+            )
+
+        try:
+            session.add(new_subscriber)
+            db_event.subscribers += 1
+            session.commit()
+        except Exception as ex:
+            session.rollback()
+            Log.error(f"An error occurred: {ex}\n{traceback.format_exc()}")
+
+# Handle when user unsubscribes from an event
+@bot.event
+async def on_raw_scheduled_event_user_remove(payload):
+    # Fetch the event details
+    guild = payload.guild
+    event = await guild.fetch_scheduled_event(payload.event_id)
+
+    # Ignore subscriptions in hub server
+    if guild.id == HUB_SERVER_ID:
+        return
+
+    # Ignore subscriptions by event creator
+    if payload.user_id == int(event.creator_id):
+        return
+    
+    # Find the event and subscriber in the database
+    db_event = session.query(DbEvent).filter(DbEvent.status != 'cancelled', DbEvent.event_name == event.name).order_by(desc(DbEvent.created_at)).first()
+    db_subscriber = session.query(DbSubscriber).filter_by(user_id=payload.user_id, event_number=db_event.event_number).first()
+
+    if db_event is not None and db_subscriber is not None:
+        try:
+            session.delete(db_subscriber)
+            db_event.subscribers -= 1
+            session.commit()
+        except Exception as ex:
+            session.rollback()
+            Log.error(f"An error occurred: {ex}\n{traceback.format_exc()}")
 
 
 # ------------------------------- INVITE HANDLERS -------------------------------
@@ -2646,18 +2795,16 @@ async def on_ready():
     for category_obj in session.query(DbCategory).all():
         category_to_role[category_obj.ID] = category_obj.role_id
 
-    Log.info(f"{invite_to_role=}")
-    Log.info(f"{category_to_role=}")
-    Log.ok("Bot is ready.")
+
+    Log.ok("Bot is ready! Hello :)")
 
 
 if DEBUG:
-    print(
+    Log.info(
         f"""Bootstrapping bot...
 ---------------------------------------
 {VERSION=}
 ---------------------------------------
-Hello :)
 """
     )
 
