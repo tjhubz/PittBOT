@@ -2,8 +2,6 @@
 
 **This is the bot that will be used for all official Pitt ResLife Discord guilds.**
 
-https://www.maskup.pitt.edu/residence-life/
-
 
 ## What it does
 
@@ -13,13 +11,6 @@ https://www.maskup.pitt.edu/residence-life/
   - Students must enter their pitt email upon joining the server. It keeps emails in a database for lookup.
 - Synchronized event creation
   - Since ResLife hosts multiple events throughout the year they can be easily posted to all 11 Discord servers
-
-## Future features
-
-- Slur prevention
-  - Self-explanatory
-- Automatic assistance with common questions (FAQ system)
-  - For instance, if someone asks "What are meal swaps?" it would inform them what they are and how to use them.
 
 ## Contributing 
 If you are interested in contributing, see [CONTRIBUTING.md](CONTRIBUTING.md) to get started, and [join the Discord][discord-link]!

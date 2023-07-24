@@ -908,7 +908,7 @@ async def verify(ctx):
     description="Create categories based off of a hastebin/pastebin list of RA names."
 )
 @discord.guild_only()
-@discord.ext.commands.has_permissions(manage_channels=True)
+@discord.ext.commands.has_permissions(administrator=True)
 async def make_categories(
     ctx,
     link: discord.Option(
@@ -1953,11 +1953,17 @@ async def on_scheduled_event_create(scheduled_event):
     # Get the creator's username if available, otherwise use their ID
     creator = await bot.get_or_fetch_user(scheduled_event.creator_id)
     
+    # Check the location type and set the location accordingly
+    if scheduled_event.location.type.name != 'external':
+        location = str(scheduled_event.location.type.name)
+    else:
+        location = scheduled_event.location.value
+
     # Create a new event record in the database
     new_event = DbEvent(
         event_name=scheduled_event.name,
         event_type=event_type,
-        location=scheduled_event.location.value,
+        location=location,
         creator_name=creator.name,
         creator_id=scheduled_event.creator_id,
         date=scheduled_event.start_time.date(),
@@ -2013,7 +2019,7 @@ async def on_scheduled_event_create(scheduled_event):
                 event_clone = await guild.create_scheduled_event(
                     name=scheduled_event.name,
                     description=scheduled_event.description,
-                    location=scheduled_event.location,
+                    location=location,
                     start_time=scheduled_event.start_time,
                     end_time=scheduled_event.end_time,
                 )
@@ -2048,7 +2054,7 @@ async def on_scheduled_event_create(scheduled_event):
             await guild.create_scheduled_event(
                 name=scheduled_event.name,
                 description=scheduled_event.description,
-                location=scheduled_event.location,
+                location=location,
                 start_time=scheduled_event.start_time,
                 end_time=scheduled_event.end_time,
             )
@@ -2083,11 +2089,17 @@ async def on_scheduled_event_update(old_scheduled_event, new_scheduled_event):
     # Stores whether the event was manually started
     event_start = False
 
+    # Check the location type and set the location accordingly
+    if new_scheduled_event.location.type.name != 'external':
+        location = str(new_scheduled_event.location.type.name)
+    else:
+        location = new_scheduled_event.location.value
+
     # Update the event record in the database
     db_event = session.query(DbEvent).filter(DbEvent.status != 'cancelled', DbEvent.event_name == old_scheduled_event.name).order_by(desc(DbEvent.created_at)).first()
     if db_event is not None:
         db_event.event_name = new_scheduled_event.name
-        db_event.location = new_scheduled_event.location.value
+        db_event.location = location
         db_event.start_time = new_scheduled_event.start_time
         db_event.end_time = new_scheduled_event.end_time
         db_event.status = new_scheduled_event.status.name
@@ -2112,7 +2124,7 @@ async def on_scheduled_event_update(old_scheduled_event, new_scheduled_event):
                 await scheduled_event.edit(
                     name=new_scheduled_event.name,
                     description=new_scheduled_event.description,
-                    location=new_scheduled_event.location,
+                    location=location,
                     start_time=new_scheduled_event.start_time,
                     end_time=new_scheduled_event.end_time,
                     )
@@ -2124,7 +2136,7 @@ async def on_scheduled_event_update(old_scheduled_event, new_scheduled_event):
                         # Edits the event to match the one on the hub server
                         await scheduled_event.edit(
                             description=new_scheduled_event.description,
-                            location=new_scheduled_event.location,
+                            location=location,
                             start_time=new_scheduled_event.start_time,
                             end_time=new_scheduled_event.end_time,
                         )
@@ -2138,7 +2150,7 @@ async def on_scheduled_event_update(old_scheduled_event, new_scheduled_event):
                         # Edits the event to match the one on the hub server
                         await scheduled_event.edit(
                             description=new_scheduled_event.description,
-                            location=new_scheduled_event.location,
+                            location=location,
                             end_time=new_scheduled_event.end_time,
                         )
     # Sends an appropriate confirmation in #bot-commands depending on what was updated
