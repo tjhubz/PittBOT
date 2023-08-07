@@ -2232,16 +2232,23 @@ async def weekly_cumulative_event_announcement():
         event_count = 0
         for scheduled_event in guild.scheduled_events:
             def within_week(x):
-                d = datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S.%f")
+                try:
+                    d = datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    d = datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S.%f") # Sometimes there are microseconds
                 now = datetime.datetime.now()
-                return (d - now).days < 7
+                return (d - now).days < 7 # Check if the events are within a week
             if scheduled_event.status.name == "scheduled" and within_week(str(scheduled_event.start_time.replace(tzinfo=None))):
                 event_count += 1
                 if len(scheduled_event.description) > 64:
                     truncated_description = scheduled_event.description[:64] + '...'
                 else:
                     truncated_description = scheduled_event.description
-                date = datetime.datetime.strptime(str(scheduled_event.start_time.replace(tzinfo=None)), "%Y-%m-%d %H:%M:%S.%f")
+                date_string = str(scheduled_event.start_time.replace(tzinfo=None))
+                try:
+                    date = datetime.datetime.strptime(date_string, "%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    date = datetime.datetime.strptime(date_string, "%Y-%m-%d %H:%M:%S.%f")
                 day = date.strftime("%A")
                 link_embed.add_field(name=scheduled_event.name,value=f"""*{day}*\n{truncated_description}\n[Details]({scheduled_event.url})""")
         # Finds the announcements channel and sends the embed message
