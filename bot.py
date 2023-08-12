@@ -149,208 +149,217 @@ class VerifyModal(Modal):
         )
 
     async def callback(self, interaction: discord.Interaction):
-        verified = False
-        email = self.children[0].value
-        if self.children[1].value:
-            user_to_nickname[interaction.user.id] = self.children[1].value
-            Log.info(
-                f"User {interaction.user.name}[{interaction.user.id}] set their preferred nickname to '{self.children[1].value}'"
-            )
-        if "@pitt.edu" in self.children[0].value:
-            Log.ok(
-                f"{interaction.user.name} attempted to verify with email '{email}'. This email was not rejected."
-            )
-            verified = True
-        else:
-            Log.warning(
-                f"{interaction.user.name} attempted to verify with email '{email}' but was denied"
-            )
-            await interaction.response.send_message(
-                "Only @pitt.edu emails will be accepted. Please retry by pressing the green button.",
-                ephemeral=True,
-            )
-            return
-
-        guild = interaction.guild
-
-        if not guild:
-            if interaction.user.id in user_to_guild:
-                guild = user_to_guild[interaction.user.id]
+        try:    
+            verified = False
+            email = self.children[0].value
+            if self.children[1].value:
+                user_to_nickname[interaction.user.id] = self.children[1].value
+                Log.info(
+                    f"User {interaction.user.name}[{interaction.user.id}] set their preferred nickname to '{self.children[1].value}'"
+                )
+            if "@pitt.edu" in self.children[0].value:
+                Log.ok(
+                    f"{interaction.user.name} attempted to verify with email '{email}'. This email was not rejected."
+                )
+                verified = True
             else:
-                Log.error(
-                    f"Verification modal was submitted by {interaction.user.name}[{interaction.user.id}] but was not associated with a guild."
+                Log.warning(
+                    f"{interaction.user.name} attempted to verify with email '{email}' but was denied"
                 )
                 await interaction.response.send_message(
-                    "We couldn't find out which server you wanted to verify for. Please retry by pressing the green button or typing `/verify` in the verify channel.",
+                    "Only @pitt.edu emails will be accepted. Please retry by pressing the green button.",
+                    ephemeral=True,
+                )
+                return
+
+            guild = interaction.guild
+
+            if not guild:
+                if interaction.user.id in user_to_guild:
+                    guild = user_to_guild[interaction.user.id]
+                else:
+                    Log.error(
+                        f"Verification modal was submitted by {interaction.user.name}[{interaction.user.id}] but was not associated with a guild."
+                    )
+                    await interaction.response.send_message(
+                        "We couldn't find out which server you wanted to verify for. Please retry by pressing the green button or typing `/verify` in the verify channel.",
+                        ephemeral=True,
+                    )
+
+            member = discord.utils.get(guild.members, id=interaction.user.id)
+
+            if not member:
+                member = interaction.user
+
+            logs_channel = discord.utils.get(guild.channels, name="logs")
+
+            invite = user_to_assigned_invite[member.id]
+
+            if not invite:
+                Log.error(
+                    f"Verification modal was submitted by {interaction.user.name}[{interaction.user.id}] but was not associated with any invite."
+                )
+                if logs_channel:
+                    await logs_channel.send(
+                        f"Verification modal was submitted by {interaction.user.name}[{interaction.user.id}] but was not associated with any invite."
+                    )
+                await interaction.response.send_message(
+                    "We couldn't find out which invite link you used to join. Please retry by pressing the green button or typing `/verify` in the verify channel.",
                     ephemeral=True,
                 )
 
-        member = discord.utils.get(guild.members, id=interaction.user.id)
+            assigned_role = user_to_assigned_role[member.id]
 
-        if not member:
-            member = interaction.user
-
-        logs_channel = discord.utils.get(guild.channels, name="logs")
-
-        invite = user_to_assigned_invite[member.id]
-
-        if not invite:
-            Log.error(
-                f"Verification modal was submitted by {interaction.user.name}[{interaction.user.id}] but was not associated with any invite."
-            )
-            if logs_channel:
-                await logs_channel.send(
-                    f"Verification modal was submitted by {interaction.user.name}[{interaction.user.id}] but was not associated with any invite."
-                )
-            await interaction.response.send_message(
-                "We couldn't find out which invite link you used to join. Please retry by pressing the green button or typing `/verify` in the verify channel.",
-                ephemeral=True,
-            )
-
-        assigned_role = user_to_assigned_role[member.id]
-
-        if not assigned_role:
-            Log.error(
-                f"Verification modal was submitted by {interaction.user.name}[{interaction.user.id}] but was not associated with any assigned role."
-            )
-            if logs_channel:
-                await logs_channel.send(
+            if not assigned_role:
+                Log.error(
                     f"Verification modal was submitted by {interaction.user.name}[{interaction.user.id}] but was not associated with any assigned role."
                 )
+                if logs_channel:
+                    await logs_channel.send(
+                        f"Verification modal was submitted by {interaction.user.name}[{interaction.user.id}] but was not associated with any assigned role."
+                    )
+                await interaction.response.send_message(
+                    "We couldn't find out which community you tried to join. Please retry by pressing the green button or typing `/verify` in the verify channel.",
+                    ephemeral=True,
+                )
+
+            # Set the user's nickname to their email address or preferred name on successful verification
+            if member.id in user_to_nickname:
+                nickname = user_to_nickname[member.id]
+            else:
+                nickname = email[: email.find("@pitt.edu")]
+
+            await member.edit(nick=nickname)
+
+            # Send message in logs channel when they successfully verify
+            Log.ok(f"Verified {member.name} with email '{email}'")
+            if logs_channel:
+                await logs_channel.send(
+                    content=f"Verified {member.name} with email '{email}'"
+                )
+
+            # Need to give the member the appropriate role
+            is_user_ra = False
+            # If the invite code's use was previously zero, then we should actually give the user
+            # the RA role, in addition to the RA X's community role.
+            if invite.uses == 0:
+                # First use of invite
+                is_user_ra = True
+                ra_role = discord.utils.get(guild.roles, name="RA")
+                if ra_role:
+                    await member.add_roles(
+                        ra_role,
+                        reason=f"Member joined with first use of invite code {invite.code}",
+                    )
+                else:
+                    Log.error(
+                        f"Guild {guild.name}[{guild.id}] has no role named 'RA' but user {member.name}[{member.id}] should have received this role"
+                    )
+
+            else:
+                # Otherwise resident
+                residents_role = discord.utils.get(guild.roles, name="residents")
+                if residents_role:
+                    await member.add_roles(
+                        residents_role,
+                        reason=f"Member joined with {invite.code} after RA already set.",
+                    )
+                else:
+                    Log.error(
+                        f"Guild {guild.name}[{guild.id}] does not have a role named 'residents' but user {member.name}[{member.id}] should have received this role"
+                    )
+
+            if assigned_role:
+                await member.add_roles(
+                    assigned_role,
+                    reason=f"Member joined with invite code {invite.code}",
+                )
+                if logs_channel:
+                    await logs_channel.send(
+                        f"User {member.name}[{member.id}] has been verified with role {assigned_role}."
+                    )
+            else:
+                Log.error(
+                    "Bot was not able to determine a role from the invite link used. Aborting."
+                )
+                if logs_channel:
+                    await logs_channel.send(
+                        f"Unable to determine a role from the invite link used by {member.name}[{member.id}]. No roles will be applied."
+                    )
+                await interaction.response.send_message(
+                    "The invite link you used couldn't associate you with a specific community, please click the \"Need help?\" button above.",
+                )
+                return
+
             await interaction.response.send_message(
-                "We couldn't find out which community you tried to join. Please retry by pressing the green button or typing `/verify` in the verify channel.",
+                f"Welcome {interaction.user.mention}! Thank you for verifying. You can now exit this channel. Check out the channels on the left! If you are on mobile, click the three lines in the top left.",
                 ephemeral=True,
             )
 
-        # Set the user's nickname to their email address or preferred name on successful verification
-        if member.id in user_to_nickname:
-            nickname = user_to_nickname[member.id]
-        else:
-            nickname = email[: email.find("@pitt.edu")]
-
-        await member.edit(nick=nickname)
-
-        # Send message in logs channel when they successfully verify
-        Log.ok(f"Verified {member.name} with email '{email}'")
-        if logs_channel:
-            await logs_channel.send(
-                content=f"Verified {member.name} with email '{email}'"
+            # Take user's ability to message verification channel away.
+            await guild_to_landing[guild.id].set_permissions(
+                invite_to_role[invite.code],
+                read_messages=False,
+                send_messages=False,
             )
 
-        # Need to give the member the appropriate role
-        is_user_ra = False
-        # If the invite code's use was previously zero, then we should actually give the user
-        # the RA role, in addition to the RA X's community role.
-        if invite.uses == 0:
-            # First use of invite
-            is_user_ra = True
-            ra_role = discord.utils.get(guild.roles, name="RA")
-            if ra_role:
-                await member.add_roles(
-                    ra_role,
-                    reason=f"Member joined with first use of invite code {invite.code}",
+            # We should add user to database here
+            if assigned_role:
+                new_member = DbUser(
+                    ID=member.id,
+                    username=member.name,
+                    email=email,
+                    verified=verified,
+                    is_ra=is_user_ra,
+                    community=assigned_role.name,
                 )
             else:
-                Log.error(
-                    f"Guild {guild.name}[{guild.id}] has no role named 'RA' but user {member.name}[{member.id}] should have received this role"
+                new_member = DbUser(
+                    ID=member.id,
+                    username=member.name,
+                    email=email,
+                    verified=verified,
+                    is_ra=is_user_ra,
+                    community="resident",
                 )
 
-        else:
-            # Otherwise resident
-            residents_role = discord.utils.get(guild.roles, name="residents")
-            if residents_role:
-                await member.add_roles(
-                    residents_role,
-                    reason=f"Member joined with {invite.code} after RA already set.",
-                )
-            else:
+            # Use merge instead of add to handle if the user is already found in the database.
+            # Our use case may dictate that we actually want to cause an error here and
+            # disallow users to verify a second time, but this poses a couple challenges
+            # including if a user leaves the server and is re-invited.
+            session.merge(new_member)
+
+            # Unset caches used for verification
+            if member.id in user_to_assigned_invite:
+                del user_to_assigned_invite[member.id]
+            if member.id in user_to_assigned_role:
+                del user_to_assigned_role[member.id]
+            if member.id in user_to_guild:
+                del user_to_guild[member.id]
+            if member.id in override_user_to_code:
+                del override_user_to_code[member.id]
+            if member.id in user_to_invite:
+                del user_to_invite[member.id]
+            if member.id in user_to_nickname:
+                del user_to_nickname[member.id]
+            try:
+                session.commit()
+            except:
+                session.rollback()
                 Log.error(
-                    f"Guild {guild.name}[{guild.id}] does not have a role named 'residents' but user {member.name}[{member.id}] should have received this role"
+                    f"Could not save any database entries for {member.name}[{member.id}]. This is a critical DB error."
                 )
 
-        if assigned_role:
-            await member.add_roles(
-                assigned_role,
-                reason=f"Member joined with invite code {invite.code}",
-            )
-            if logs_channel:
-                await logs_channel.send(
-                    f"User {member.name}[{member.id}] has been verified with role {assigned_role}."
-                )
-        else:
-            Log.error(
-                "Bot was not able to determine a role from the invite link used. Aborting."
-            )
-            if logs_channel:
-                await logs_channel.send(
-                    f"Unable to determine a role from the invite link used by {member.name}[{member.id}]. No roles will be applied."
-                )
+            async def on_timeout(self):
+                self.stop()
+
+        except Exception as e:
+            Log.error(f"An unexpected error occurred: {str(e)}")
+            Log.error(traceback.format_exc())
             await interaction.response.send_message(
-                "The invite link you used couldn't associate you with a specific community, please click the \"Need help?\" button above.",
+                "An unexpected error occurred. Please click the \"Need help?\" button above.",
+                ephemeral=True,
             )
-            return
-
-        await interaction.response.send_message(
-            f"Welcome {interaction.user.mention}! Thank you for verifying. You can now exit this channel. Check out the channels on the left! If you are on mobile, click the three lines in the top left.",
-            ephemeral=True,
-        )
-
-        # Take user's ability to message verification channel away.
-        await guild_to_landing[guild.id].set_permissions(
-            invite_to_role[invite.code],
-            read_messages=False,
-            send_messages=False,
-        )
-
-        # We should add user to database here
-        if assigned_role:
-            new_member = DbUser(
-                ID=member.id,
-                username=member.name,
-                email=email,
-                verified=verified,
-                is_ra=is_user_ra,
-                community=assigned_role.name,
-            )
-        else:
-            new_member = DbUser(
-                ID=member.id,
-                username=member.name,
-                email=email,
-                verified=verified,
-                is_ra=is_user_ra,
-                community="resident",
-            )
-
-        # Use merge instead of add to handle if the user is already found in the database.
-        # Our use case may dictate that we actually want to cause an error here and
-        # disallow users to verify a second time, but this poses a couple challenges
-        # including if a user leaves the server and is re-invited.
-        session.merge(new_member)
-
-        # Unset caches used for verification
-        if member.id in user_to_assigned_invite:
-            del user_to_assigned_invite[member.id]
-        if member.id in user_to_assigned_role:
-            del user_to_assigned_role[member.id]
-        if member.id in user_to_guild:
-            del user_to_guild[member.id]
-        if member.id in override_user_to_code:
-            del override_user_to_code[member.id]
-        if member.id in user_to_invite:
-            del user_to_invite[member.id]
-        if member.id in user_to_nickname:
-            del user_to_nickname[member.id]
-        try:
-            session.commit()
-        except:
-            session.rollback()
-            Log.error(
-                f"Could not save any database entries for {member.name}[{member.id}]. This is a critical DB error."
-            )
-
-        async def on_timeout(self):
-            self.stop()
 
 
 class ManualRoleSelectModal(discord.ui.Modal):
