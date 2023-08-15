@@ -86,7 +86,7 @@ for table in tables:
 
 # Create tables
 Base.metadata.create_all(db)
-Log.info("Database is ready.")
+Log.ok("Database is ready.")
 
 # ------------------------------- GLOBAL VARIABLES  -------------------------------
 
@@ -1906,8 +1906,8 @@ async def assign(ctx,
 @discord.ext.commands.has_permissions(administrator=True)
 async def broadcast(
     interaction: discord.Interaction,
-    ping_residents: discord.Option(bool, "Should residents be pinged?"),
     message: discord.Option(str, "Message to broadcast"),
+    ping_role: discord.Option(str, "Would you like to ping a role?", required=False),
     image_url: discord.Option(str, "URL of image to attach", required=False)
 ):
     # Cancels the command with a warning message if the user is not an administrator
@@ -1922,9 +1922,9 @@ async def broadcast(
             continue
         # Finds the @residents role
         mention_string = ""
-        if ping_residents:
+        if ping_role:
             for role in guild.roles:
-                if role.name == 'residents':
+                if role.name == ping_role:
                     mention_string = role.mention
         # Finds the announcements channel and sends the message
         for channel in guild.channels:
@@ -1939,7 +1939,29 @@ async def broadcast(
                     else:
                         await channel.send(content=message + "\n" + mention_string)
     # Sends confirmation message in #bot-commands
-    await interaction.response.send_message("Request completed.")
+    await interaction.response.send_message(content="Request completed.", delete_after=10)
+
+
+# Command to clear messages in a channel
+@bot.slash_command(name="purge", description="Deletes all messages in a channel up to 100 messages")
+@discord.guild_only()
+@discord.ext.commands.has_permissions(administrator=True)
+async def purge(
+    interaction: discord.Interaction
+):
+    # Cancels the command with a warning message if the user is not an administrator
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message("Administrator permissions required to run this command.", ephemeral=True)
+        return
+    await interaction.response.send_message(content="Deleting messages...", ephemeral=True, delete_after=5)
+    msgs = []
+    async for msg in interaction.channel.history(limit=100):
+        msgs.append(msg)
+    try:
+        await interaction.channel.delete_messages(msgs)
+    except discord.errors.HTTPException:
+        async for msg in interaction.channel.history(limit=100):
+            await msg.delete()
 
 
 # ------------------------------- EVENT HANDLERS -------------------------------
@@ -2231,14 +2253,22 @@ async def weekly_cumulative_event_announcement():
     for guild in bot.guilds:
         if guild.id == HUB_SERVER_ID:
             continue 
+        # Delete old announcements
+        for channel in guild.channels:
+            if channel.name == 'announcements':
+                if channel.category.name == 'info':
+                    async for msg in channel.history():
+                        if msg.author == bot.user and "Check out what's happening this week!" in msg.content:
+                            await msg.delete()
         # Finds the @residents role
         mention_string = ""
         for role in guild.roles:
             if role.name == 'residents':
-                mention_string = role.mention
-        # Creates an embed and iteratively appends fields for each event
-        link_embed = discord.Embed(title = "*Click \"details\" for more information!*")
+                mention_string = f"Check out what's happening this week!\n||{role.mention} "
+        # Sends the embed for each event
+        message = f""
         event_count = 0
+        events = []
         for scheduled_event in guild.scheduled_events:
             def within_week(x):
                 try:
@@ -2249,23 +2279,14 @@ async def weekly_cumulative_event_announcement():
                 return (d - now).days < 7 # Check if the events are within a week
             if scheduled_event.status.name == "scheduled" and within_week(str(scheduled_event.start_time.replace(tzinfo=None))):
                 event_count += 1
-                if len(scheduled_event.description) > 64:
-                    truncated_description = scheduled_event.description[:64] + '...'
-                else:
-                    truncated_description = scheduled_event.description
-                date_string = str(scheduled_event.start_time.replace(tzinfo=None))
-                try:
-                    date = datetime.datetime.strptime(date_string, "%Y-%m-%d %H:%M:%S")
-                except ValueError:
-                    date = datetime.datetime.strptime(date_string, "%Y-%m-%d %H:%M:%S.%f")
-                day = date.strftime("%A")
-                link_embed.add_field(name=scheduled_event.name,value=f"""*{day}*\n{truncated_description}\n[Details]({scheduled_event.url})""")
+                events.append(f"[-]({scheduled_event.url}) ")
         # Finds the announcements channel and sends the embed message
+        message = message.join(events)        
         if event_count > 0:
             for channel in guild.channels:
                 if channel.name == 'announcements':
                     if channel.category.name == 'info':
-                        await channel.send(content=mention_string,embed=link_embed)
+                        await channel.send(content=mention_string+f"{message}||") # Send the announcement
 
 
 # Handle when user subscribes to an event
@@ -2337,6 +2358,58 @@ async def on_raw_scheduled_event_user_remove(payload):
         except Exception as ex:
             session.rollback()
             Log.error(f"An error occurred: {ex}\n{traceback.format_exc()}")
+
+
+# Test the weekly event announcement
+@bot.slash_command(name="weeklytest", description="Tests the weekly event announcement")
+@discord.guild_only()
+@discord.ext.commands.has_permissions(administrator=True)
+async def weeklytest(
+    interaction: discord.Interaction
+):
+    # Cancels the command with a warning message if the user is not an administrator
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message("Administrator permissions required to run this command.", ephemeral=True)
+        return
+    # Iterates through residence hall servers, skipping hub server
+    for guild in bot.guilds:
+        if guild.id == HUB_SERVER_ID:
+            continue 
+        # Delete old announcements
+        for channel in guild.channels:
+            if channel.name == 'announcements':
+                if channel.category.name == 'info':
+                    async for msg in channel.history():
+                        if msg.author == bot.user and "Check out what's happening this week!" in msg.content:
+                            await msg.delete()
+        # Finds the @residents role
+        mention_string = ""
+        for role in guild.roles:
+            if role.name == 'residents':
+                mention_string = f"Check out what's happening this week!\n||{role.mention} "
+        # Creates an embed and iteratively appends fields for each event
+        message = f""
+        event_count = 0
+        events = []
+        for scheduled_event in guild.scheduled_events:
+            def within_week(x):
+                try:
+                    d = datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    d = datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S.%f") # Sometimes there are microseconds
+                now = datetime.datetime.now()
+                return (d - now).days < 7 # Check if the events are within a week
+            if scheduled_event.status.name == "scheduled" and within_week(str(scheduled_event.start_time.replace(tzinfo=None))):
+                event_count += 1
+                events.append(f"[-]({scheduled_event.url}) ")
+        # Finds the announcements channel and sends the embed message
+        message = message.join(events)        
+        if event_count > 0:
+            for channel in guild.channels:
+                if channel.name == 'announcements':
+                    if channel.category.name == 'info':
+                        await channel.send(content=mention_string+f"{message}||") # Send the announcement
+    await interaction.response.send_message(content="Request completed.")
 
 
 # ------------------------------- INVITE HANDLERS -------------------------------
