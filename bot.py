@@ -287,7 +287,7 @@ class VerifyModal(Modal):
                         f"Unable to determine a role from the invite link used by {member.name}[{member.id}]. No roles will be applied."
                     )
                 await interaction.response.send_message(
-                    "The invite link you used couldn't associate you with a specific community, please click the \"Need help?\" button above.",
+                    "The invite link you used couldn't associate you with a specific community, please click the \"Get Help\" button above.",
                 )
                 return
 
@@ -357,7 +357,7 @@ class VerifyModal(Modal):
             Log.error(f"An unexpected error occurred: {str(e)}")
             Log.error(traceback.format_exc())
             await interaction.response.send_message(
-                "An unexpected error occurred. Please click the \"Need help?\" button above.",
+                "An unexpected error occurred. Please click the \"Get Help\" button above.",
                 ephemeral=True,
             )
 
@@ -514,7 +514,7 @@ class VerifyView(View):
     def __init__(self):
         super().__init__(timeout=None)
 
-        help_button = discord.ui.Button(label="Need Help?", style=discord.ButtonStyle.link, url="https://pitt.co1.qualtrics.com/jfe/form/SV_25Y15jZ9BmYYEf4")
+        help_button = discord.ui.Button(label="Get Help", style=discord.ButtonStyle.link, url="https://pitt.co1.qualtrics.com/jfe/form/SV_25Y15jZ9BmYYEf4")
         self.add_item(help_button)
 
     @discord.ui.button(label="Verify", style=discord.ButtonStyle.green)
@@ -719,7 +719,7 @@ async def verify(ctx):
                         )
                         if not assigned_role:
                             await ctx.response.send_message(
-                                "We couldn't find a role to give you, please click the \"Need help?\" button above."
+                                "We couldn't find a role to give you, please click the \"Get Help\" button above."
                             )
                             Log.error(
                                 f"Databased invite '{inv_object.code}' did not return a role to assign to {member.name}[{member.id}]. This is an error."
@@ -767,7 +767,7 @@ async def verify(ctx):
                                     f"Databased invite '{inv.code}' did not return a role to assign to {member.name}[{member.id}]. This is an error."
                                 )
                                 await ctx.followup.send(
-                                    f"The invite link '{inv.code}' couldn't associate you with a specific community, please click the \"Need help?\" button above.",
+                                    f"The invite link '{inv.code}' couldn't associate you with a specific community, please click the \"Get Help\" button above.",
                                 )
                                 if logs_channel:
                                     await logs_channel.send(
@@ -778,7 +778,7 @@ async def verify(ctx):
                                 f"Invite link {inv.code} was neither cached nor found in the database. This code will be ignored. This is an error. "
                             )
                             await ctx.followup.send(
-                                f"The invite link '{inv.code}' couldn't associate you with a specific community, please click the \"Need help?\" button above.",
+                                f"The invite link '{inv.code}' couldn't associate you with a specific community, please click the \"Get Help\" button above.",
                             )
                             if logs_channel:
                                 await logs_channel.send(
@@ -813,7 +813,7 @@ async def verify(ctx):
                 Log.error(f"{num_overlap=}")
                 Log.error(f"{potential_invites=}")
                 await ctx.response.send_message(
-                    content="No valid invite link could associate you with a specific community, please click the \"Need help?\" button above.",
+                    content="No valid invite link could associate you with a specific community, please click the \"Get Help\" button above.",
                     ephemeral=True,
                 )
                 # Abort
@@ -879,7 +879,7 @@ async def verify(ctx):
                                 f"Databased invite '{invite_code}' was not associated with a role. User {member.name}[{member.id}] will need to be manually set."
                             )
                         await ctx.response.send_message(
-                            f"The invite link '{invite_code}' couldn't associate you with a specific community, please click the \"Need help?\" button above.",
+                            f"The invite link '{invite_code}' couldn't associate you with a specific community, please click the \"Get Help\" button above.",
                         )
                         return
                 else:
@@ -887,7 +887,7 @@ async def verify(ctx):
                         f"Invite link {invite_code} was neither cached nor found in the database. This code will be ignored. This is an error. "
                     )
                     await ctx.response.send_message(
-                        f"The invite link '{invite_code}' couldn't associate you with a specific community, please click the \"Need help?\" button above.",
+                        f"The invite link '{invite_code}' couldn't associate you with a specific community, please click the \"Get Help\" button above.",
                     )
                     return
 
@@ -1677,18 +1677,17 @@ questions_and_answers = OrderedDict()
 
 
 # PLEASE KEEP KEYS IN ALPHABETICAL ORDER
-questions_and_answers["computer_labs"] = ">>> The hours of operation for the University's computing labs are located here: \nhttps://www.technology.pitt.edu/services/student-computing-labs"
-questions_and_answers["covid_masks"] = ">>> Information about vaccines and Pitt campuses' current COVID-19 levels can be found here: \nhttps://www.coronavirus.pitt.edu/\n\nMasking indoors is **required** when your campus's community level is `High`."
-questions_and_answers["covid_tests"] = ">>> If you are feeling symptomatic, please call student health at (412) 383-1800. They can schedule COVID-19 and flu testing for free.\nhttps://www.coronavirus.pitt.edu/testing-and-care/covid-19-testing-overview"
+questions_and_answers["computer_labs"] = ">>> The hours of operation for the University's computing labs are located [here](https://www.technology.pitt.edu/services/student-computing-labs)."
 questions_and_answers["dining_dollars"] = ">>> This is a list of off-campus vendors that accept Pitt Dining Dollars: \nhttps://dineoncampus.com/pitt/offcampus-vendors"
 questions_and_answers["dining_guest"] = ">>> All unlimited meal plans and some lifestyle memberships come with 5-10 `flex passes` per semester. These can be used to admit friends or family at the Eatery or purchase a meal swap.\nhttps://dineoncampus.com/pitt/all-about-meal-memberships"
-questions_and_answers["dining_hours"] = ">>> The hours of operation for campus eateries are located here: \nhttps://dineoncampus.com/pitt/hours-of-operation"
-questions_and_answers["library_hours"] = ">>> The hours of operation for University libraries are located here: \nhttps://www.library.pitt.edu/hours"
+questions_and_answers["dining_hours"] = ">>> The hours of operation for campus eateries are located [here](https://dineoncampus.com/pitt/hours-of-operation)."
+questions_and_answers["library_hours"] = ">>> The hours of operation for University libraries are located [here](https://www.library.pitt.edu/hours)."
 questions_and_answers["maintenance"] = ">>> For urgent maintenance requests, please call Panther Central at (412) 648-1100\nFor all other requests, simply visit https://www.pc.pitt.edu/maintenance-requests and fill out the form."
 questions_and_answers["panther_funds"] = ">>> You can add Panther Funds to your Pitt account using this link: \nhttps://bit.ly/PowerYourPantherCard\n\nYou can also load funds and track the balance of all of your accounts by downloading the Transact eAccounts mobile app on iOS or Android."
 questions_and_answers["phone_numbers"] = ">>> These are some important phone numbers:\n\n**Panther Central:** 412-648-1100\n**Pitt Police Emergency Line:** 412-624-2121\n**Pitt Police Non-Emergency Line:** 412-624-4040\n**Pitt Student Health Services:** 412-383-1800\n**Pittsburgh Action Against Rape 24/7 Helpline:** 1-866-363-7273\n**resolve Crisis Services:** 1-888-796-8226\n**SafeRider:** 412-648-2255\n**University Counseling Center:** 412-648-7930"
-questions_and_answers["printing"] = ">>> You can upload print jobs at https://print.pitt.edu/. All you have to do is upload your file to the website and then choose the job settings at the bottom right.\n\nOnce your file is uploaded, simply go to a printer and swipe your Pitt ID. Remember, you must go to a color printer to print in color!\n\nA full list of University printers and their locations is available here: https://www.technology.pitt.edu/services/pitt-print#locations"
-questions_and_answers["shuttle_schedule"] = ">>> The schedule for Pitt's on-campus shuttles with real-time tracking can be found here: \nhttps://pittshuttle.com/"
+questions_and_answers["printing"] = ">>> **How do I print?**\nIt's easy! First, upload your file at https://print.pitt.edu/. Once your file is uploaded, you can adjust job settings, like double sided printing or color options.\n\nOnce your file is uploaded, simply go to a printer and swipe your Pitt ID. Remember, you must go to a color printer to print in color!\n\nA full list of University printers and their locations is available [here](https://www.technology.pitt.edu/services/pitt-print#locations)."
+questions_and_answers["shipping"] = ">>> There are multiple shipping locations throughout the university. To view the address for your residence hall, please click [here](https://www.pts.pitt.edu/addresses-and-zip-codes-15213-university-pittsburghs-residence-accommodations)."
+questions_and_answers["shuttle_schedule"] = ">>> The schedule for Pitt's on-campus shuttles with real-time tracking can be found [here](https://pittshuttle.com/)."
 
 
 # generate an array of discord option choices using the hashmap's keys
@@ -2401,7 +2400,7 @@ async def weeklytest(
                 return (d - now).days < 7 # Check if the events are within a week
             if scheduled_event.status.name == "scheduled" and within_week(str(scheduled_event.start_time.replace(tzinfo=None))):
                 event_count += 1
-                events.append(f"[-]({scheduled_event.url}) ")
+                events.append(f"[.]({scheduled_event.url}) ")
         # Finds the announcements channel and sends the embed message
         message = message.join(events)        
         if event_count > 0:
