@@ -1638,7 +1638,7 @@ async def assist_verification(ctx):
             if dm_channel:
                 try:
                     await dm_channel.send(
-                        f"Hey there! It looks like you have not completed joining the {ctx.guild.name} Discord server. Please ensue that you click the green \"verify\" button to confirm that you are a resident. If you are experiencing issues verifying yourself, click [here](https://pitt.co1.qualtrics.com/jfe/form/SV_25Y15jZ9BmYYEf4) for help."
+                        f"Hey there! It looks like you have not completed joining the {ctx.guild.name} Discord server. Please ensure that you click the green \"verify\" button to confirm that you are a resident. If you are experiencing issues verifying yourself, click [here](https://pitt.co1.qualtrics.com/jfe/form/SV_25Y15jZ9BmYYEf4) for help."
                     )
                 except discord.Forbidden:
                     Log.warning(
