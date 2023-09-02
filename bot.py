@@ -1624,11 +1624,11 @@ async def assist_verification(ctx):
         if len(member.roles) <= 1:
             # Member will be notified
             Log.info(
-                f"Pruning member {member.name}[{member.id}] as they have one or fewer roles (@/everyone)"
+                f"Reminding member {member.name}[{member.id}] as they have one or fewer roles (@/everyone)"
             )
             if logs_channel:
                 await logs_channel.send(
-                    f"Pruning member {member.name}[{member.id}] as they have one or fewer roles (@/everyone)"
+                    f"Reminding member {member.name}[{member.id}] as they have one or fewer roles (@/everyone)"
                 )
 
             # Get DM channel
