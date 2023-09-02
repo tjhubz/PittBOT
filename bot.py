@@ -1742,8 +1742,8 @@ questions_and_answers = OrderedDict()
 
 # PLEASE KEEP KEYS IN ALPHABETICAL ORDER
 questions_and_answers["computer_labs"] = ">>> The hours of operation for the University's computing labs are located [here](https://www.technology.pitt.edu/services/student-computing-labs)."
-questions_and_answers["dining_dollars"] = ">>> This is a list of off-campus vendors that accept Pitt Dining Dollars: \nhttps://dineoncampus.com/pitt/offcampus-vendors"
-questions_and_answers["dining_guest"] = ">>> All unlimited meal plans and some lifestyle memberships come with 5-10 `flex passes` per semester. These can be used to admit friends or family at the Eatery or purchase a meal swap.\nhttps://dineoncampus.com/pitt/all-about-meal-memberships"
+questions_and_answers["dining_dollars"] = ">>> This is a list of off-campus vendors that accept Pitt Dining Dollars: \nhttps://acceptinglocations.com/pantherfunds/"
+questions_and_answers["dining_guest"] = ">>> All unlimited meal plans and some lifestyle memberships come with 10 `flex swaps` per semester. These can be used to admit friends or family at the Eatery or purchase a meal swap.\nhttps://dineoncampus.com/pitt/all-about-meal-memberships"
 questions_and_answers["dining_hours"] = ">>> The hours of operation for campus eateries are located [here](https://dineoncampus.com/pitt/hours-of-operation)."
 questions_and_answers["library_hours"] = ">>> The hours of operation for University libraries are located [here](https://www.library.pitt.edu/hours)."
 questions_and_answers["maintenance"] = ">>> For urgent maintenance requests, please call Panther Central at (412) 648-1100\nFor all other requests, simply visit https://www.pc.pitt.edu/maintenance-requests and fill out the form."
