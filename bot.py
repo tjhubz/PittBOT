@@ -41,7 +41,7 @@ BOT_COMMANDS_ID = int(os.getenv("BOT_COMMANDS_ID"))
 ERRORS_CHANNEL_ID = int(os.getenv("ERRORS_CHANNEL_ID"))
 LONG_DELETE_TIME = 60.0
 SHORT_DELETE_TIME = 15.0
-VERIFICATION_MESSAGE = "Click the button below to get verified!"
+VERIFICATION_MESSAGE = "Welcome! Please click the verify button below to confirm that you are a resident."
 
 # ------------------------------- DATABASE -------------------------------
 
@@ -1322,7 +1322,7 @@ async def set_user(
             session.rollback()
 
         await ctx.response.send_message(
-            content="All set! {member.name} has been added to the database.",
+            content=f"All set! {member.name} has been added to the database.",
             ephemeral=True,
         )
 
@@ -1537,7 +1537,7 @@ async def reset_user(
 
 
 @bot.slash_command(
-    description="Manually drop a user from the database/remove them from verification list."
+    description="Kicks all members that have not verified."
 )
 @discord.ext.commands.has_permissions(administrator=True)
 async def prune_pending(ctx):
@@ -1568,7 +1568,7 @@ async def prune_pending(ctx):
             if dm_channel:
                 try:
                     await dm_channel.send(
-                        f"Oh no! It looks like your verification period expired for the server {ctx.guild.name}. Please re-join with the invite your RA sent you and press the green verify button once you join."
+                        f"Hey there! It looks like you didn't verify yourself as a resident when you joined the server {ctx.guild.name}. Please re-join with the invite your RA sent you and press the green verify button once you join."
                     )
                 except discord.Forbidden:
                     Log.warning(
@@ -1603,6 +1603,70 @@ async def prune_pending(ctx):
     message_content = f"**{num_pruned} members were pruned:**\n"
 
     for mem in pruned:
+        message_content += f"{mem}\n"
+
+    # Reply with members pruned
+    await ctx.followup.send(content=message_content, ephemeral=True)
+
+
+@bot.slash_command(
+    description="Help users get verified by reminding them."
+)
+@discord.ext.commands.has_permissions(administrator=True)
+async def assist_verification(ctx):
+    # Get logs channel
+    logs_channel = discord.utils.get(ctx.guild.channels, name="logs")
+
+    # Defer response due to slow operation
+    await ctx.defer(ephemeral=True)
+
+    # Iterate over members
+    num_notified = 0
+    notified = []
+    async for member in ctx.guild.fetch_members():
+        if len(member.roles) <= 1:
+            # Member will be notified
+            Log.info(
+                f"Pruning member {member.name}[{member.id}] as they have one or fewer roles (@/everyone)"
+            )
+            if logs_channel:
+                await logs_channel.send(
+                    f"Pruning member {member.name}[{member.id}] as they have one or fewer roles (@/everyone)"
+                )
+
+            # Get DM channel
+            dm_channel = await member.create_dm()
+
+            # Notify them
+            if dm_channel:
+                try:
+                    await dm_channel.send(
+                        f"Hey there! It looks like you have not completed joining the {ctx.guild.name} Discord server. Please ensue that you click the green \"verify\" button to confirm that you are a resident. If you are experiencing issues verifying yourself, click [here](https://pitt.co1.qualtrics.com/jfe/form/SV_25Y15jZ9BmYYEf4) for help."
+                    )
+                except discord.Forbidden:
+                    Log.warning(
+                        f"Member {member.name}[{member.id}] does not allow DMs or creating a DM failed, could not remind them."
+                    )
+                    if logs_channel:
+                        await logs_channel.send(
+                            f"**WARNING**: Member {member.name}[{member.id}] does not allow DMs or creating a DM failed, could not remind them."
+                        )
+            else:
+                Log.warning(
+                    f"Member {member.name}[{member.id}] does not allow DMs or creating a DM failed, could not remind them."
+                )
+                if logs_channel:
+                    await logs_channel.send(
+                        f"**WARNING**: Member {member.name}[{member.id}] does not allow DMs or creating a DM failed, could not remind them."
+                    )
+
+            num_notified += 1
+            notified.append(member)
+
+    # Respond with ephemeral list of members pruned
+    message_content = f"**{num_notified} members were notified:**\n"
+
+    for mem in notified:
         message_content += f"{mem}\n"
 
     # Reply with members pruned
