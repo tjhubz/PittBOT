@@ -669,7 +669,6 @@ async def verify(ctx):
         potential_invites = []
 
         for possible_invite in old_invites:
-            Log.info(f"Checking {possible_invite.code}")
             new_invite = util.invites.get_invite_from_code(
                 invites_now, possible_invite.code
             )
@@ -686,13 +685,11 @@ async def verify(ctx):
                 invite = possible_invite  # If all else fails, grab the first one, which is usually right
 
                 # Who joined and with what link
-                Log.info(f"Potentially invite Code: {possible_invite.code}")
+                Log.info(f"Potential invite code: {possible_invite.code}")
 
                 potential_invites.append(possible_invite)
 
         num_overlap = len(potential_invites)
-
-        Log.info(f"{potential_invites=}")
 
         assigned_role = None
 
@@ -2515,7 +2512,6 @@ async def on_member_join(member: discord.Member):
     potential_invites = []
 
     for possible_invite in old_invites:
-        Log.info(f"Checking {possible_invite.code}")
         new_invite = util.invites.get_invite_from_code(
             invites_now, possible_invite.code
         )
@@ -2532,7 +2528,7 @@ async def on_member_join(member: discord.Member):
             invite = possible_invite  # If all else fails, grab the first one, which is usually right
 
             # Who joined and with what link
-            Log.info(f"Potentially invite Code: {possible_invite.code}")
+            Log.info(f"Potential invite code: {possible_invite.code}")
 
             potential_invites.append(possible_invite)
 
