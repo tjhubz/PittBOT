@@ -669,7 +669,6 @@ async def verify(ctx):
         potential_invites = []
 
         for possible_invite in old_invites:
-            Log.info(f"Checking {possible_invite.code}")
             new_invite = util.invites.get_invite_from_code(
                 invites_now, possible_invite.code
             )
@@ -686,13 +685,11 @@ async def verify(ctx):
                 invite = possible_invite  # If all else fails, grab the first one, which is usually right
 
                 # Who joined and with what link
-                Log.info(f"Potentially invite Code: {possible_invite.code}")
+                Log.info(f"Potential invite code: {possible_invite.code}")
 
                 potential_invites.append(possible_invite)
 
         num_overlap = len(potential_invites)
-
-        Log.info(f"{potential_invites=}")
 
         assigned_role = None
 
@@ -1627,11 +1624,11 @@ async def assist_verification(ctx):
         if len(member.roles) <= 1:
             # Member will be notified
             Log.info(
-                f"Pruning member {member.name}[{member.id}] as they have one or fewer roles (@/everyone)"
+                f"Reminding member {member.name}[{member.id}] as they have one or fewer roles (@/everyone)"
             )
             if logs_channel:
                 await logs_channel.send(
-                    f"Pruning member {member.name}[{member.id}] as they have one or fewer roles (@/everyone)"
+                    f"Reminding member {member.name}[{member.id}] as they have one or fewer roles (@/everyone)"
                 )
 
             # Get DM channel
@@ -1641,7 +1638,7 @@ async def assist_verification(ctx):
             if dm_channel:
                 try:
                     await dm_channel.send(
-                        f"Hey there! It looks like you have not completed joining the {ctx.guild.name} Discord server. Please ensue that you click the green \"verify\" button to confirm that you are a resident. If you are experiencing issues verifying yourself, click [here](https://pitt.co1.qualtrics.com/jfe/form/SV_25Y15jZ9BmYYEf4) for help."
+                        f"Hey there! It looks like you have not completed joining the {ctx.guild.name} Discord server. Please ensure that you click the green \"verify\" button to confirm that you are a resident. If you are experiencing issues verifying yourself, click [here](https://pitt.co1.qualtrics.com/jfe/form/SV_25Y15jZ9BmYYEf4) for help."
                     )
                 except discord.Forbidden:
                     Log.warning(
@@ -2515,7 +2512,6 @@ async def on_member_join(member: discord.Member):
     potential_invites = []
 
     for possible_invite in old_invites:
-        Log.info(f"Checking {possible_invite.code}")
         new_invite = util.invites.get_invite_from_code(
             invites_now, possible_invite.code
         )
@@ -2532,7 +2528,7 @@ async def on_member_join(member: discord.Member):
             invite = possible_invite  # If all else fails, grab the first one, which is usually right
 
             # Who joined and with what link
-            Log.info(f"Potentially invite Code: {possible_invite.code}")
+            Log.info(f"Potential invite code: {possible_invite.code}")
 
             potential_invites.append(possible_invite)
 
