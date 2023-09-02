@@ -2707,7 +2707,7 @@ async def on_guild_join(guild):
     # Finished
     # Delete old verification message
     async for msg in guild_to_landing[guild.id].history():
-        if msg.author == bot.user and msg.content == VERIFICATION_MESSAGE:
+        if msg.author == bot.user:
             await msg.delete()
     await guild_to_landing[guild.id].send(content=VERIFICATION_MESSAGE, view=view)
 
@@ -2947,7 +2947,7 @@ async def on_ready():
         try:
             # Delete old verification message
             async for msg in guild_to_landing[guild.id].history():
-                if msg.author == bot.user and msg.content == VERIFICATION_MESSAGE:
+                if msg.author == bot.user:
                     await msg.delete()
             await guild_to_landing[guild.id].send(
                 content=VERIFICATION_MESSAGE, view=view
