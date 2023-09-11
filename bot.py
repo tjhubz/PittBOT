@@ -2324,7 +2324,7 @@ async def weekly_cumulative_event_announcement():
         mention_string = ""
         for role in guild.roles:
             if role.name == 'residents':
-                mention_string = f"Check out what's happening this week!\n||{role.mention} "
+                mention_string = f"Check out what's happening this week! Make sure to click the \"interested\" button if you would like to be reminded when that event starts.\n||{role.mention} "
         # Sends the embed for each event
         message = f""
         event_count = 0
@@ -2446,7 +2446,7 @@ async def weeklytest(
         mention_string = ""
         for role in guild.roles:
             if role.name == 'residents':
-                mention_string = f"Check out what's happening this week!\n||{role.mention} "
+                mention_string = f"Check out what's happening this week! Make sure to click the \"interested\" button if you would like to be reminded when that event starts.\n||{role.mention} "
         # Creates an embed and iteratively appends fields for each event
         message = f""
         event_count = 0
