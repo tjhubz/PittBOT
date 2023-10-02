@@ -16,12 +16,14 @@ import sqlalchemy
 import requests
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import inspect, func, desc
+from sqlalchemy.exc import OperationalError
 import util.invites
 from util.log import Log
 from util.db import DbGuild, DbInvite, DbUser, DbCategory, DbVerifyingUser, DbEvent, DbSubscriber, Base
 from util.emojis import sync_add, sync_delete, sync_name
 import datetime
 from io import BytesIO
+import asyncio
 
 
 bot = discord.Bot(intents=discord.Intents.all())
@@ -29,19 +31,28 @@ bot = discord.Bot(intents=discord.Intents.all())
 # ------------------------------- INITIALIZATION -------------------------------
 
 TOKEN = os.getenv("PITTBOT_TOKEN")
+# Need to remove this - no reason to have this as I always lime the logs to have all information.
 DEBUG = False
+# Need to make versions better - this doesn't do much.
 VERSION = "1.5.0"
+# Database credentials - must be set for bot to boot.
 DATABASE_USER = os.getenv("MYSQL_USER")
 DATABASE_PASSWORD = os.getenv("MYSQL_PASSWORD")
 DATABASE_IP = os.getenv("MYSQL_IP")
 DATABASE_PORT = os.getenv("MYSQL_PORT")
 DATABASE_NAME = os.getenv("MYSQL_DATABASE")
+# Discord channel IDs - must be set for bot to work properly.
 HUB_SERVER_ID = int(os.getenv("HUB_SERVER_ID"))
 BOT_COMMANDS_ID = int(os.getenv("BOT_COMMANDS_ID"))
 ERRORS_CHANNEL_ID = int(os.getenv("ERRORS_CHANNEL_ID"))
+# Settings - not currently used/important
 LONG_DELETE_TIME = 60.0
 SHORT_DELETE_TIME = 15.0
+# Messaging
 VERIFICATION_MESSAGE = "Welcome! Please click the verify button below to confirm that you are a resident."
+# Database Execution
+MAX_RETRIES = 3
+RETRY_DELAY = 5  # delay in seconds
 
 # ------------------------------- DATABASE -------------------------------
 
@@ -344,10 +355,13 @@ class VerifyModal(Modal):
                 del user_to_nickname[member.id]
             try:
                 session.commit()
-            except:
+            except Exception as ex:
                 session.rollback()
                 Log.error(
                     f"Could not save any database entries for {member.name}[{member.id}]. This is a critical DB error."
+                )
+                Log.error(
+                    f"An error occurred: {ex}\n{traceback.format_exc()}"
                 )
 
             async def on_timeout(self):
@@ -405,8 +419,9 @@ class CommunitySelectDropdown(discord.ui.Select):
         session.merge(verifying_data)
         try:
             session.commit()
-        except:
+        except Exception as ex:
             session.rollback()
+            Log.error(f"An error occurred: {ex}\n{traceback.format_exc()}")
             Log.error(
                 f"Couldn't add {interaction.userber.name}[{interaction.user.id}] to VerifyingUsers database."
             )
@@ -598,8 +613,9 @@ async def verify(ctx):
             filter(lambda inv: inv.code == verifying_user.invite_code, old_invites),
             None,
         )
-    except:
+    except Exception as ex:
         verifying_user = None
+        Log.error(f"An error occurred: {ex}\n{traceback.format_exc()}")
 
     if member.id in user_to_invite:
         invite = user_to_invite[member.id]
@@ -893,8 +909,11 @@ async def verify(ctx):
     # Ensure session is committed before leaving function
     try:
         session.commit()
-    except:
+    except Exception as ex:
         session.rollback()
+        Log.error(
+            f"An error occurred: {ex}\n{traceback.format_exc()}"
+        )
 
     user_to_assigned_invite[member.id] = invite
     user_to_assigned_role[member.id] = assigned_role
@@ -1011,8 +1030,9 @@ async def make_categories(
                 invite_to_role[invite.code] = invite_role_dict[invite.code]
         try:
             session.commit()
-        except:
+        except Exception as ex:
             session.rollback()
+            Log.error(f"An error occurred: {ex}\n{traceback.format_exc()}")
 
         # Upload the file containing the links and ra names as an attachment, so they
         # can be distributed to the RAs to share.
@@ -1193,8 +1213,9 @@ async def set_email(
         session.merge(user)
         try:
             session.commit()
-        except:
+        except Exception as ex:
             session.rollback()
+            Log.error(f"An error occurred: {ex}\n{traceback.format_exc()}")
         return
 
     user.email = email
@@ -1315,8 +1336,9 @@ async def set_user(
         session.merge(user)
         try:
             session.commit()
-        except:
+        except Exception as ex:
             session.rollback()
+            Log.error(f"An error occurred: {ex}\n{traceback.format_exc()}")
 
         await ctx.response.send_message(
             content=f"All set! {member.name} has been added to the database.",
@@ -1334,8 +1356,11 @@ async def set_user(
     session.merge(user)
     try:
         session.commit()
-    except:
+    except Exception as ex:
         session.rollback()
+        Log.error(
+            f"An error occurred: {ex}\n{traceback.format_exc()}"
+        )
 
     await ctx.response.send_message(
         content="All set! {member.name} has been updated.", ephemeral=True
@@ -1385,8 +1410,9 @@ async def set_ra(
         session.merge(user)
         try:
             session.commit()
-        except:
+        except Exception as ex:
             session.rollback()
+            Log.error(f"An error occurred: {ex}\n{traceback.format_exc()}")
         return
 
     if not member:
@@ -1507,8 +1533,11 @@ async def reset_user(
 
     try:
         session.commit()
-    except:
+    except Exception as ex:
         session.rollback()
+        Log.error(
+            f"An error occurred: {ex}\n{traceback.format_exc()}"
+        )
 
     if user_count > 0:
         if verifying_user_count > 0:
@@ -1822,8 +1851,11 @@ async def ctx_reset_user(ctx, member: discord.Member):
         return
     try:
         session.commit()
-    except:
+    except Exception as ex:
         session.rollback()
+        Log.error(
+            f"An error occurred: {ex}\n{traceback.format_exc()}"
+        )
 
     if user_count > 0:
         await ctx.respond(
@@ -1862,8 +1894,11 @@ async def ctx_reset_user_drop(ctx, member: discord.Member):
         return
     try:
         session.commit()
-    except:
+    except Exception as ex:
         session.rollback()
+        Log.error(
+            f"An error occurred: {ex}\n{traceback.format_exc()}"
+        )
 
     if user_count > 0:
         if verifying_user_count > 0:
@@ -2070,7 +2105,9 @@ async def on_scheduled_event_create(scheduled_event):
         session.commit()
     except Exception as ex:
         session.rollback()
-        Log.error(f"An error occurred: {ex}\n{traceback.format_exc()}")
+        Log.error(
+            f"An error occurred: {ex}\n{traceback.format_exc()}"
+        )
 
     # Add image to the event
     if (scheduled_event.guild).id != HUB_SERVER_ID:
@@ -2125,7 +2162,11 @@ async def on_scheduled_event_create(scheduled_event):
             db_event = session.query(DbEvent).filter(DbEvent.status != 'cancelled', DbEvent.event_name == scheduled_event.name).order_by(desc(DbEvent.created_at)).first()
             if db_event is not None:
                 db_event.image_added = True
-                session.commit()
+                try:
+                    session.commit()
+                except Exception as ex:
+                    session.rollback()
+                    Log.error(f"An error occurred: {ex}\n{traceback.format_exc()}")
 
         else:
             await bot_commands.send(
@@ -2542,14 +2583,22 @@ async def on_member_join(member: discord.Member):
         # Add row to database
         verifying_data = DbVerifyingUser(ID=member.id, invite_code=invite.code)
 
-        session.merge(verifying_data)
-        try:
-            session.commit()
-        except:
-            session.rollback()
-            Log.error(
-                f"Couldn't add {member.name}[{member.id}] to VerifyingUsers database."
-            )
+        for attempt in range(MAX_RETRIES):
+            try:
+                session.merge(verifying_data)
+                session.commit()
+                break
+            except OperationalError:
+                session.rollback()
+                Log.error(
+                    f"Couldn't add {member.name}[{member.id}] to VerifyingUsers database. Attempt {attempt+1} of {MAX_RETRIES}."
+                )
+                if attempt < MAX_RETRIES - 1:
+                    await asyncio.sleep(RETRY_DELAY)
+            except Exception as e:
+                session.rollback()
+                Log.error(f"An unexpected error occurred: {e}")
+                break
     elif num_overlap > 1:
         # Code for potential overlap
         options = []
