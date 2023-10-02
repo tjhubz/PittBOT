@@ -195,9 +195,10 @@ class VerifyModal(Modal):
                         f"Verification modal was submitted by {interaction.user.name}[{interaction.user.id}] but was not associated with a guild."
                     )
                     await interaction.response.send_message(
-                        "We couldn't find out which server you wanted to verify for. Please retry by pressing the green button or typing `/verify` in the verify channel.",
+                        "We couldn't find out which server you wanted to verify for. Please click the \"Get Help\" button above and we will assist you.",
                         ephemeral=True,
                     )
+                    return
 
             member = discord.utils.get(guild.members, id=interaction.user.id)
 
@@ -206,7 +207,7 @@ class VerifyModal(Modal):
 
             logs_channel = discord.utils.get(guild.channels, name="logs")
 
-            invite = user_to_assigned_invite[member.id]
+            invite = user_to_assigned_invite.get(member.id)
 
             if not invite:
                 Log.error(
@@ -217,9 +218,10 @@ class VerifyModal(Modal):
                         f"Verification modal was submitted by {interaction.user.name}[{interaction.user.id}] but was not associated with any invite."
                     )
                 await interaction.response.send_message(
-                    "We couldn't find out which invite link you used to join. Please retry by pressing the green button or typing `/verify` in the verify channel.",
+                    "We couldn't find out which invite link you used to join. Please click the \"Get Help\" button above and we will assist you.",
                     ephemeral=True,
                 )
+                return
 
             assigned_role = user_to_assigned_role[member.id]
 
@@ -232,9 +234,10 @@ class VerifyModal(Modal):
                         f"Verification modal was submitted by {interaction.user.name}[{interaction.user.id}] but was not associated with any assigned role."
                     )
                 await interaction.response.send_message(
-                    "We couldn't find out which community you tried to join. Please retry by pressing the green button or typing `/verify` in the verify channel.",
+                    "We couldn't find out which community you tried to join. Please click the \"Get Help\" button above.",
                     ephemeral=True,
                 )
+                return
 
             # Set the user's nickname to their email address or preferred name on successful verification
             if member.id in user_to_nickname:
