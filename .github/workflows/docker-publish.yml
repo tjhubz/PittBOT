@@ -7,7 +7,7 @@ name: Docker
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main" ,  "dev" ]
     # Publish semver tags as releases.
     tags: [ 'v*.*.*' ]
   pull_request:
@@ -66,6 +66,14 @@ jobs:
         uses: docker/metadata-action@96383f45573cb7f253c731d3b3ab81c87ef81934 # v5.0.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr,prefix=pr-
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=edge,event=branch,branch=main
+            type=edge,event=branch,branch=dev
 
       # Build and push Docker image with Buildx (don't push on PR)
       # https://github.com/docker/build-push-action
