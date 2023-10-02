@@ -31,7 +31,7 @@ bot = discord.Bot(intents=discord.Intents.all())
 # ------------------------------- INITIALIZATION -------------------------------
 
 Log.info("Loading configuration...")
-# Get from discord developer website
+# Get a key from https://discord.com/developers/applications
 TOKEN = os.getenv("PITTBOT_TOKEN")
 # Need to remove this - no reason to have this as I always lime the logs to have all information.
 DEBUG = False
