@@ -16,32 +16,46 @@ import sqlalchemy
 import requests
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import inspect, func, desc
+from sqlalchemy.exc import OperationalError
 import util.invites
 from util.log import Log
 from util.db import DbGuild, DbInvite, DbUser, DbCategory, DbVerifyingUser, DbEvent, DbSubscriber, Base
 from util.emojis import sync_add, sync_delete, sync_name
 import datetime
 from io import BytesIO
+import asyncio
 
 
 bot = discord.Bot(intents=discord.Intents.all())
 
 # ------------------------------- INITIALIZATION -------------------------------
 
+Log.info("Loading environment variables...")
+# Get a key from https://discord.com/developers/applications
 TOKEN = os.getenv("PITTBOT_TOKEN")
+# Need to remove this - no reason to have this as I always lime the logs to have all information.
 DEBUG = False
+# Need to make versions better - this doesn't do much.
 VERSION = "1.5.0"
+# Database credentials - must be set for bot to boot.
 DATABASE_USER = os.getenv("MYSQL_USER")
 DATABASE_PASSWORD = os.getenv("MYSQL_PASSWORD")
 DATABASE_IP = os.getenv("MYSQL_IP")
 DATABASE_PORT = os.getenv("MYSQL_PORT")
 DATABASE_NAME = os.getenv("MYSQL_DATABASE")
+# Discord channel IDs - must be set for bot to work properly.
 HUB_SERVER_ID = int(os.getenv("HUB_SERVER_ID"))
 BOT_COMMANDS_ID = int(os.getenv("BOT_COMMANDS_ID"))
 ERRORS_CHANNEL_ID = int(os.getenv("ERRORS_CHANNEL_ID"))
+Log.ok("Environment variables loaded.")
+# Settings - not currently used/important
 LONG_DELETE_TIME = 60.0
 SHORT_DELETE_TIME = 15.0
+# Messaging
 VERIFICATION_MESSAGE = "Welcome! Please click the verify button below to confirm that you are a resident."
+# Database Execution
+MAX_RETRIES = 3
+RETRY_DELAY = 5  # delay in seconds
 
 # ------------------------------- DATABASE -------------------------------
 
@@ -182,9 +196,10 @@ class VerifyModal(Modal):
                         f"Verification modal was submitted by {interaction.user.name}[{interaction.user.id}] but was not associated with a guild."
                     )
                     await interaction.response.send_message(
-                        "We couldn't find out which server you wanted to verify for. Please retry by pressing the green button or typing `/verify` in the verify channel.",
+                        "We couldn't find out which server you wanted to verify for. Please click the \"Get Help\" button above and we will assist you.",
                         ephemeral=True,
                     )
+                    return
 
             member = discord.utils.get(guild.members, id=interaction.user.id)
 
@@ -193,7 +208,7 @@ class VerifyModal(Modal):
 
             logs_channel = discord.utils.get(guild.channels, name="logs")
 
-            invite = user_to_assigned_invite[member.id]
+            invite = user_to_assigned_invite.get(member.id)
 
             if not invite:
                 Log.error(
@@ -204,9 +219,10 @@ class VerifyModal(Modal):
                         f"Verification modal was submitted by {interaction.user.name}[{interaction.user.id}] but was not associated with any invite."
                     )
                 await interaction.response.send_message(
-                    "We couldn't find out which invite link you used to join. Please retry by pressing the green button or typing `/verify` in the verify channel.",
+                    "Our system encountered an error verifying you. Please click the \"Get Help\" button above and we will assist you.",
                     ephemeral=True,
                 )
+                return
 
             assigned_role = user_to_assigned_role[member.id]
 
@@ -219,9 +235,10 @@ class VerifyModal(Modal):
                         f"Verification modal was submitted by {interaction.user.name}[{interaction.user.id}] but was not associated with any assigned role."
                     )
                 await interaction.response.send_message(
-                    "We couldn't find out which community you tried to join. Please retry by pressing the green button or typing `/verify` in the verify channel.",
+                    "Our system encountered an error verifying you. Please click the \"Get Help\" button above and we will assist you.",
                     ephemeral=True,
                 )
+                return
 
             # Set the user's nickname to their email address or preferred name on successful verification
             if member.id in user_to_nickname:
@@ -287,7 +304,7 @@ class VerifyModal(Modal):
                         f"Unable to determine a role from the invite link used by {member.name}[{member.id}]. No roles will be applied."
                     )
                 await interaction.response.send_message(
-                    "The invite link you used couldn't associate you with a specific community, please click the \"Get Help\" button above.",
+                    "Our system encountered an error verifying you. Please click the \"Get Help\" button above and we will assist you.",
                 )
                 return
 
@@ -343,11 +360,15 @@ class VerifyModal(Modal):
             if member.id in user_to_nickname:
                 del user_to_nickname[member.id]
             try:
+                Log.info(f"Attempting to commit database changes for {member.name}...")
                 session.commit()
-            except:
+            except Exception as ex:
                 session.rollback()
                 Log.error(
                     f"Could not save any database entries for {member.name}[{member.id}]. This is a critical DB error."
+                )
+                Log.error(
+                    f"An error occurred: {ex}\n{traceback.format_exc()}"
                 )
 
             async def on_timeout(self):
@@ -405,8 +426,9 @@ class CommunitySelectDropdown(discord.ui.Select):
         session.merge(verifying_data)
         try:
             session.commit()
-        except:
+        except Exception as ex:
             session.rollback()
+            Log.error(f"An error occurred: {ex}\n{traceback.format_exc()}")
             Log.error(
                 f"Couldn't add {interaction.userber.name}[{interaction.user.id}] to VerifyingUsers database."
             )
@@ -598,8 +620,9 @@ async def verify(ctx):
             filter(lambda inv: inv.code == verifying_user.invite_code, old_invites),
             None,
         )
-    except:
+    except Exception as ex:
         verifying_user = None
+        Log.error(f"An error occurred: {ex}\n{traceback.format_exc()}")
 
     if member.id in user_to_invite:
         invite = user_to_invite[member.id]
@@ -646,7 +669,7 @@ async def verify(ctx):
                 assigned_role = discord.utils.get(guild.roles, id=inv_object.role_id)
                 if not assigned_role:
                     await ctx.response.send_message(
-                        "We couldn't find a role to give you, ask your RA for help!"
+                        "We couldn't find a role to give you, please click the \"Get Help\" button above."
                     )
                     Log.error(
                         f"Databased invite '{inv_object.code}' did not return a role to assign to {member.name}[{member.id}]. This is an error."
@@ -892,9 +915,13 @@ async def verify(ctx):
 
     # Ensure session is committed before leaving function
     try:
+        Log.info(f"Attempting to commit database changes for {member.name}...")
         session.commit()
-    except:
+    except Exception as ex:
         session.rollback()
+        Log.error(
+            f"An error occurred: {ex}\n{traceback.format_exc()}"
+        )
 
     user_to_assigned_invite[member.id] = invite
     user_to_assigned_role[member.id] = assigned_role
@@ -1011,8 +1038,9 @@ async def make_categories(
                 invite_to_role[invite.code] = invite_role_dict[invite.code]
         try:
             session.commit()
-        except:
+        except Exception as ex:
             session.rollback()
+            Log.error(f"An error occurred: {ex}\n{traceback.format_exc()}")
 
         # Upload the file containing the links and ra names as an attachment, so they
         # can be distributed to the RAs to share.
@@ -1085,6 +1113,7 @@ async def setup(ctx):
     session.merge(this_guild)
 
     try:
+        Log.info(f"Attempting to merge {this_guild} into the database...")
         session.commit()
     except IntegrityError as int_exception:
         session.rollback()
@@ -1193,8 +1222,9 @@ async def set_email(
         session.merge(user)
         try:
             session.commit()
-        except:
+        except Exception as ex:
             session.rollback()
+            Log.error(f"An error occurred: {ex}\n{traceback.format_exc()}")
         return
 
     user.email = email
@@ -1315,8 +1345,9 @@ async def set_user(
         session.merge(user)
         try:
             session.commit()
-        except:
+        except Exception as ex:
             session.rollback()
+            Log.error(f"An error occurred: {ex}\n{traceback.format_exc()}")
 
         await ctx.response.send_message(
             content=f"All set! {member.name} has been added to the database.",
@@ -1333,9 +1364,13 @@ async def set_user(
 
     session.merge(user)
     try:
+        Log.info(f"User {member.name} was in the database. Updating...")
         session.commit()
-    except:
+    except Exception as ex:
         session.rollback()
+        Log.error(
+            f"An error occurred: {ex}\n{traceback.format_exc()}"
+        )
 
     await ctx.response.send_message(
         content="All set! {member.name} has been updated.", ephemeral=True
@@ -1384,9 +1419,11 @@ async def set_ra(
         )
         session.merge(user)
         try:
+            Log.info(f"User {member.name} wasn't in the database. Adding user...")
             session.commit()
-        except:
+        except Exception as ex:
             session.rollback()
+            Log.error(f"An error occurred: {ex}\n{traceback.format_exc()}")
         return
 
     if not member:
@@ -1429,6 +1466,7 @@ async def set_ra(
     session.merge(user)
 
     try:
+        Log.info(f"User {member.name} was in the database. Setting to RA.")
         session.commit()
     except Exception as ex:
         session.rollback()
@@ -1506,9 +1544,13 @@ async def reset_user(
             return
 
     try:
+        Log.info(f"Deleted {user_count} rows for user {member.id}")
         session.commit()
-    except:
+    except Exception as ex:
         session.rollback()
+        Log.error(
+            f"An error occurred: {ex}\n{traceback.format_exc()}"
+        )
 
     if user_count > 0:
         if verifying_user_count > 0:
@@ -1711,6 +1753,7 @@ async def auto_link(ctx):
         category_obj = DbCategory(ID=category_id, role_id=role_id)
 
         try:
+            Log.info(f"Attempting to merge {{{category_id}:{role_id}}} to database...")
             session.merge(category_obj)
             session.commit()  # commit the session right after a successful merge
         except Exception:
@@ -1821,9 +1864,13 @@ async def ctx_reset_user(ctx, member: discord.Member):
         )
         return
     try:
+        Log.info(f"User {member.name} was in the database. Resetting...")
         session.commit()
-    except:
+    except Exception as ex:
         session.rollback()
+        Log.error(
+            f"An error occurred: {ex}\n{traceback.format_exc()}"
+        )
 
     if user_count > 0:
         await ctx.respond(
@@ -1861,9 +1908,13 @@ async def ctx_reset_user_drop(ctx, member: discord.Member):
         )
         return
     try:
+        Log.info(f"User {member.name} was in the database. Resetting and dropping invite...")
         session.commit()
-    except:
+    except Exception as ex:
         session.rollback()
+        Log.error(
+            f"An error occurred: {ex}\n{traceback.format_exc()}"
+        )
 
     if user_count > 0:
         if verifying_user_count > 0:
@@ -2066,11 +2117,14 @@ async def on_scheduled_event_create(scheduled_event):
     )
 
     try:
+        Log.info(f"Adding {scheduled_event.name} to database...")
         session.add(new_event)
         session.commit()
     except Exception as ex:
         session.rollback()
-        Log.error(f"An error occurred: {ex}\n{traceback.format_exc()}")
+        Log.error(
+            f"An error occurred: {ex}\n{traceback.format_exc()}"
+        )
 
     # Add image to the event
     if (scheduled_event.guild).id != HUB_SERVER_ID:
@@ -2125,7 +2179,12 @@ async def on_scheduled_event_create(scheduled_event):
             db_event = session.query(DbEvent).filter(DbEvent.status != 'cancelled', DbEvent.event_name == scheduled_event.name).order_by(desc(DbEvent.created_at)).first()
             if db_event is not None:
                 db_event.image_added = True
-                session.commit()
+                try:
+                    Log.info(f"Updating {scheduled_event.name} in database...")
+                    session.commit()
+                except Exception as ex:
+                    session.rollback()
+                    Log.error(f"An error occurred: {ex}\n{traceback.format_exc()}")
 
         else:
             await bot_commands.send(
@@ -2195,6 +2254,7 @@ async def on_scheduled_event_update(old_scheduled_event, new_scheduled_event):
         db_event.end_time = new_scheduled_event.end_time
         db_event.status = new_scheduled_event.status.name
         try:
+            Log.info(f"Updating {old_scheduled_event.name} in database...")
             session.commit()
         except Exception as ex:
             session.rollback()
@@ -2279,6 +2339,7 @@ async def on_scheduled_event_delete(deleted_event):
     if db_event is not None:
         db_event.status = deleted_event.status.name
     try:
+        Log.info(f"Updating {deleted_event.name} in database to cancelled...")
         session.commit()
     except Exception as ex:
         session.rollback()
@@ -2384,6 +2445,7 @@ async def on_raw_scheduled_event_user_add(payload):
             )
 
         try:
+            Log.info(f"Adding {user.name} to database - user subscribed to {db_event.event_name}...")
             session.add(new_subscriber)
             db_event.subscribers += 1
             session.commit()
@@ -2412,6 +2474,7 @@ async def on_raw_scheduled_event_user_remove(payload):
 
     if db_event is not None and db_subscriber is not None:
         try:
+            Log.info(f"Removing {db_subscriber.user_name} from database - user unsubscribed from {db_event.event_name}...")
             session.delete(db_subscriber)
             db_event.subscribers -= 1
             session.commit()
@@ -2542,14 +2605,23 @@ async def on_member_join(member: discord.Member):
         # Add row to database
         verifying_data = DbVerifyingUser(ID=member.id, invite_code=invite.code)
 
-        session.merge(verifying_data)
-        try:
-            session.commit()
-        except:
-            session.rollback()
-            Log.error(
-                f"Couldn't add {member.name}[{member.id}] to VerifyingUsers database."
-            )
+        for attempt in range(MAX_RETRIES):
+            try:
+                Log.info(f"Adding {member.name}[{member.id}] to VerifyingUsers database...")
+                session.merge(verifying_data)
+                session.commit()
+                break
+            except OperationalError:
+                session.rollback()
+                Log.error(
+                    f"Couldn't add {member.name}[{member.id}] to VerifyingUsers database. Attempt {attempt+1} of {MAX_RETRIES}."
+                )
+                if attempt < MAX_RETRIES - 1:
+                    await asyncio.sleep(RETRY_DELAY)
+            except Exception as ex:
+                session.rollback()
+                Log.error(f"An error occurred: {ex}\n{traceback.format_exc()}")
+                break
     elif num_overlap > 1:
         # Code for potential overlap
         options = []
@@ -2689,13 +2761,14 @@ async def on_guild_join(guild):
     session.merge(this_guild)
 
     try:
+        Log.info(f"Adding {guild.name}[{guild.id}] to database...")
         session.commit()
-    except IntegrityError as int_exception:
+    except Exception as ex:
         session.rollback()
         Log.warning(
             "Attempting to merge an already existent guild into the database failed:"
         )
-        print(int_exception.with_traceback())
+        Log.error(f"An error occurred: {ex}\n{traceback.format_exc()}")
 
     # Create a view that will contain a button which can be used to initialize the verification process
     view = VerifyView()
